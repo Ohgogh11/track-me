@@ -10,7 +10,7 @@ Track Me is a personal, offline-first gym and calorie tracker for iPhone and And
 - Completing a workout saves the session without changing or creating a workout plan.
 - Editable and soft-deletable workout history.
 - Seeded and personal exercises, including secondary muscles, copy/hide/archive/restore controls.
-- Nutrition tracking with USDA search, Open Food Facts barcode scanning, reviewed servings/macros, personal foods, favorites, recent-food logging, effective-dated targets, and body-weight entries.
+- Nutrition tracking with live USDA search, Open Food Facts barcode scanning, reviewed servings/macros, personal foods, starred offline favorites, recent-food logging, effective-dated targets, and body-weight entries. Provider responses are not cached.
 - Date-ranged workout, muscle, exercise, PR, calorie, and body-weight analytics with an interactive front/back SVG muscle map.
 - Local-first writes, an outbox, idempotent cursor sync, tombstones, user isolation, conflict recovery, and explicit active-workout takeover.
 

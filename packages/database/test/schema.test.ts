@@ -35,5 +35,13 @@ describe('sync database schema', () => {
     })
     const cache = await connection.client.execute('SELECT COUNT(*) AS count FROM food_provider_cache')
     expect(Number(cache.rows[0]?.count)).toBe(1)
+    const dropFoodCacheMigration = await Bun.file(
+      new URL('../../../apps/api/drizzle/0002_drop_food_provider_cache.sql', import.meta.url),
+    ).text()
+    await connection.client.executeMultiple(dropFoodCacheMigration)
+    const cacheTable = await connection.client.execute(
+      "SELECT COUNT(*) AS count FROM sqlite_master WHERE type = 'table' AND name = 'food_provider_cache'",
+    )
+    expect(Number(cacheTable.rows[0]?.count)).toBe(0)
   })
 })

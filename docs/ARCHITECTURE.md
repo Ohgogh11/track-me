@@ -28,6 +28,7 @@ Expo screens
 - Starting from a plan clones it into a workout aggregate. Completed workout exercises retain snapshot names and muscle assignments, so later catalog edits do not rewrite history.
 - Timer segments make pause/resume duration durable across backgrounding and process restarts. A current rest deadline is reconstructed from the latest completed set timestamp and rest prescription.
 - Mobile-only tables contain local aggregates, outbox mutations, conflicts, and cursor state. Server-only tables contain current aggregates, an append-only change sequence, processed mutation IDs, devices, and a migration ledger.
+- USDA searches and Open Food Facts barcode responses are proxied live and are never cached in Turso. Only foods explicitly starred by the user, custom foods, and corrected personal copies are persisted as synchronized personal data.
 
 ## Synchronization rules
 

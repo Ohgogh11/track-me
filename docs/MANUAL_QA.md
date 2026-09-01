@@ -45,26 +45,27 @@ Record the app commit, Expo Go version, iOS version, API URL, Clerk test user, a
 24. Search for a common food, select a provider serving, change its grams, and review values; expected: calories and macros rescale before saving and attribution remains visible.
 25. Scan an international packaged-food barcode; expected: Open Food Facts data opens in the review screen and missing nutrients remain visibly unknown rather than zero.
 26. Correct a provider result, save it as a favorite, disable connectivity, and log it again; expected: the private corrected copy remains available offline.
-27. Create a custom food with a Hebrew name, log a calorie-only entry, then inspect totals; expected: Unicode is preserved and the calorie-only entry is explicitly excluded from macro totals.
-28. Use Copy yesterday and inspect the seven-day card; expected: copied entries use the selected day and weekly calorie/macro averages update.
-29. Calculate suggested targets, edit them, and confirm; expected: the calculation breakdown is shown, confirmation is required, and yesterday retains its historical targets.
-30. Record body weight in kg, switch to lb, and inspect Progress; expected: the same normalized measurement converts without changing stored meaning.
-31. Change the device timezone, tap Use this device timezone, and inspect entries near midnight; expected: grouping follows the saved profile timezone without data loss.
+27. Search for a provider food without starring it, close the sheet, and disable connectivity; expected: that provider result is not retained as an offline food.
+28. Create a custom food with a Hebrew name, log a calorie-only entry, then inspect totals; expected: Unicode is preserved and the calorie-only entry is explicitly excluded from macro totals.
+29. Use Copy yesterday and inspect the seven-day card; expected: copied entries use the selected day and weekly calorie/macro averages update.
+30. Calculate suggested targets, edit them, and confirm; expected: the calculation breakdown is shown, confirmation is required, and yesterday retains its historical targets.
+31. Record body weight in kg, switch to lb, and inspect Progress; expected: the same normalized measurement converts without changing stored meaning.
+32. Change the device timezone, tap Use this device timezone, and inspect entries near midnight; expected: grouping follows the saved profile timezone without data loss.
 
 ## Sync, cold start, and two-device recovery
 
-32. Re-enable connectivity and tap Sync now; expected: pending reaches zero, a cursor/last-sync time appears, and Koyeb cold start is handled by retries.
-33. Open the same Clerk account on a second device/simulator or a clean Expo dataset; expected: the completed workout, plan, nutrition entries, personal foods, targets, and body weight bootstrap from Turso.
-34. Edit the same simple entry offline on both devices, then sync both; expected: Settings shows a conflict with Keep mine and Use cloud, and the selected result converges.
-35. Edit the same plan/workout offline on both devices and select Use cloud; expected: a recovered copy of the local version remains available.
-36. Start separate offline workouts on both devices and sync them; expected: one remains active and the other offers Take over or Keep as draft. Take over should demote the prior session to a recoverable draft, never delete it.
-37. Delete an entry offline and sync both datasets; expected: its tombstone removes it everywhere without resurrection.
+33. Re-enable connectivity and tap Sync now; expected: pending reaches zero, a cursor/last-sync time appears, and Koyeb cold start is handled by retries.
+34. Open the same Clerk account on a second device/simulator or a clean Expo dataset; expected: the completed workout, plan, nutrition entries, personal foods, targets, and body weight bootstrap from Turso.
+35. Edit the same simple entry offline on both devices, then sync both; expected: Settings shows a conflict with Keep mine and Use cloud, and the selected result converges.
+36. Edit the same plan/workout offline on both devices and select Use cloud; expected: a recovered copy of the local version remains available.
+37. Start separate offline workouts on both devices and sync them; expected: one remains active and the other offers Take over or Keep as draft. Take over should demote the prior session to a recoverable draft, never delete it.
+38. Delete an entry offline and sync both datasets; expected: its tombstone removes it everywhere without resurrection.
 
 ## Platform/build checks
 
-38. Run `bun run --filter @track-me/mobile export`; expected: both iOS and Android exports complete.
-39. When signing access exists, test the SQLCipher EAS development build; expected: data survives restart and Expo Go is not used for the encrypted database test.
-40. Build and smoke-test Android with the same account; expected: feature and sync behavior matches iPhone.
+39. Run `bun run --filter @track-me/mobile export`; expected: both iOS and Android exports complete.
+40. When signing access exists, test the SQLCipher EAS development build; expected: data survives restart and Expo Go is not used for the encrypted database test.
+41. Build and smoke-test Android with the same account; expected: feature and sync behavior matches iPhone.
 
 ## Feedback template
 

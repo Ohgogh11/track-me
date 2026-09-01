@@ -293,7 +293,6 @@ export interface FoodSearchResponse {
   results: FoodSearchResult[]
   page: number
   hasMore: boolean
-  stale: boolean
 }
 
 export interface NutritionTotals {

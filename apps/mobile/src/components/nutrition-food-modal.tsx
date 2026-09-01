@@ -176,7 +176,6 @@ export function NutritionFoodModal({
   const [page, setPage] = useState(1)
   const [results, setResults] = useState<FoodCandidate[]>([])
   const [hasMore, setHasMore] = useState(false)
-  const [stale, setStale] = useState(false)
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [candidate, setCandidate] = useState<FoodCandidate | null>(null)
@@ -249,7 +248,6 @@ export function NutritionFoodModal({
           const next = response.results.map(fromSearchResult)
           setResults((current) => (page === 1 ? next : [...current, ...next]))
           setHasMore(response.hasMore)
-          setStale(response.stale)
         })
         .catch((searchError: unknown) => {
           if (active) setError(searchError instanceof Error ? searchError.message : 'Food search failed')
@@ -357,7 +355,9 @@ export function NutritionFoodModal({
       candidate.personalFoodId === null
         ? undefined
         : data.personalFoods.find((food) => food.id === candidate.personalFoodId)
-    if (corrected || favorite || existing !== undefined) {
+    if (existing !== undefined && !favorite && !corrected && existing.source !== 'custom') {
+      await data.remove(existing)
+    } else if (corrected || favorite || existing?.source === 'custom') {
       const per100 = (value: number | null) =>
         value === null ? null : Math.round((value / amountGrams) * 100)
       const personalFood: PersonalFood = {
@@ -438,9 +438,6 @@ export function NutritionFoodModal({
                   Favorites and custom food entry remain available offline.
                 </AppText>
               </Card>
-            ) : null}
-            {stale ? (
-              <AppText style={{ color: colors.warning }}>Showing cached provider results.</AppText>
             ) : null}
             {results.map((result) => (
               <FoodResultCard

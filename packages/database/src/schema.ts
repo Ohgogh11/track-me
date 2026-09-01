@@ -54,14 +54,3 @@ export const userDevices = sqliteTable(
   },
   (table) => [primaryKey({ columns: [table.userId, table.deviceId] })],
 )
-
-export const foodProviderCache = sqliteTable(
-  'food_provider_cache',
-  {
-    cacheKey: text('cache_key').primaryKey(),
-    payloadJson: text('payload_json').notNull(),
-    expiresAt: text('expires_at').notNull(),
-    updatedAt: text('updated_at').notNull(),
-  },
-  (table) => [index('food_provider_cache_expires_idx').on(table.expiresAt)],
-)

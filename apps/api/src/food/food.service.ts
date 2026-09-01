@@ -1,9 +1,6 @@
 import { BaseService, Service } from '@onebun/core'
 import type { FoodSearchResponse, FoodSearchResult, FoodServing } from '@track-me/contracts'
-import { foodProviderCache, getDatabaseConnection } from '@track-me/database'
-import { eq } from 'drizzle-orm'
 
-const CACHE_MILLISECONDS = 30 * 24 * 60 * 60 * 1_000
 const PAGE_SIZE = 25
 
 type UnknownRecord = Record<string, unknown>
@@ -156,91 +153,43 @@ async function fetchJson(url: URL, headers: HeadersInit = {}): Promise<unknown> 
 
 @Service()
 export class FoodService extends BaseService {
-  private async cached(
-    cacheKey: string,
-    loader: () => Promise<FoodSearchResponse>,
-  ): Promise<FoodSearchResponse> {
-    const { db } = getDatabaseConnection()
-    const [cached] = await db
-      .select()
-      .from(foodProviderCache)
-      .where(eq(foodProviderCache.cacheKey, cacheKey))
-      .limit(1)
-    if (cached !== undefined && Date.parse(cached.expiresAt) > Date.now()) {
-      return { ...(JSON.parse(cached.payloadJson) as FoodSearchResponse), stale: false }
-    }
-    try {
-      const loaded = await loader()
-      const now = new Date()
-      await db
-        .insert(foodProviderCache)
-        .values({
-          cacheKey,
-          payloadJson: JSON.stringify({ ...loaded, stale: false }),
-          updatedAt: now.toISOString(),
-          expiresAt: new Date(now.getTime() + CACHE_MILLISECONDS).toISOString(),
-        })
-        .onConflictDoUpdate({
-          target: foodProviderCache.cacheKey,
-          set: {
-            payloadJson: JSON.stringify({ ...loaded, stale: false }),
-            updatedAt: now.toISOString(),
-            expiresAt: new Date(now.getTime() + CACHE_MILLISECONDS).toISOString(),
-          },
-        })
-      return loaded
-    } catch (error) {
-      if (cached !== undefined) {
-        return { ...(JSON.parse(cached.payloadJson) as FoodSearchResponse), stale: true }
-      }
-      throw error
-    }
-  }
-
   async search(query: string, page: number): Promise<FoodSearchResponse> {
     const apiKey = process.env.USDA_FDC_API_KEY?.trim()
     if (!apiKey) {
       throw new FoodLookupError('USDA food search is not configured. You can still add a custom food.', 503)
     }
     const normalizedQuery = query.trim().replaceAll(/\s+/g, ' ')
-    const cacheKey = `usda:search:${normalizedQuery.toLocaleLowerCase('en-US')}:${page}`
-    return this.cached(cacheKey, async () => {
-      const url = new URL('https://api.nal.usda.gov/fdc/v1/foods/search')
-      url.searchParams.set('api_key', apiKey)
-      url.searchParams.set('query', normalizedQuery)
-      url.searchParams.set('pageSize', String(PAGE_SIZE))
-      url.searchParams.set('pageNumber', String(page))
-      const body = asRecord(await fetchJson(url))
-      const foods = Array.isArray(body?.foods) ? body.foods : []
-      const results = foods.flatMap((food) => {
-        const result = normalizeUsdaFood(food)
-        return result === null ? [] : [result]
-      })
-      const totalHits = numberValue(body?.totalHits) ?? results.length
-      return { results, page, hasMore: page * PAGE_SIZE < totalHits, stale: false }
+    const url = new URL('https://api.nal.usda.gov/fdc/v1/foods/search')
+    url.searchParams.set('api_key', apiKey)
+    url.searchParams.set('query', normalizedQuery)
+    url.searchParams.set('pageSize', String(PAGE_SIZE))
+    url.searchParams.set('pageNumber', String(page))
+    const body = asRecord(await fetchJson(url))
+    const foods = Array.isArray(body?.foods) ? body.foods : []
+    const results = foods.flatMap((food) => {
+      const result = normalizeUsdaFood(food)
+      return result === null ? [] : [result]
     })
+    const totalHits = numberValue(body?.totalHits) ?? results.length
+    return { results, page, hasMore: page * PAGE_SIZE < totalHits }
   }
 
   async barcode(barcode: string): Promise<FoodSearchResponse> {
-    const cacheKey = `open-food-facts:barcode:${barcode}`
-    return this.cached(cacheKey, async () => {
-      const url = new URL(`https://world.openfoodfacts.org/api/v3/product/${barcode}.json`)
-      url.searchParams.set(
-        'fields',
-        'code,product_name,product_name_en,product_name_he,brands,serving_size,serving_quantity,nutriments',
-      )
-      const userAgent =
-        process.env.OPEN_FOOD_FACTS_USER_AGENT?.trim() || 'TrackMe/0.1 (personal fitness tracker)'
-      const result = normalizeOpenFoodFactsProduct(
-        await fetchJson(url, { Accept: 'application/json', 'User-Agent': userAgent }),
-        barcode,
-      )
-      return {
-        results: result === null ? [] : [result],
-        page: 1,
-        hasMore: false,
-        stale: false,
-      }
-    })
+    const url = new URL(`https://world.openfoodfacts.org/api/v3/product/${barcode}.json`)
+    url.searchParams.set(
+      'fields',
+      'code,product_name,product_name_en,product_name_he,brands,serving_size,serving_quantity,nutriments',
+    )
+    const userAgent =
+      process.env.OPEN_FOOD_FACTS_USER_AGENT?.trim() || 'TrackMe/0.1 (personal fitness tracker)'
+    const result = normalizeOpenFoodFactsProduct(
+      await fetchJson(url, { Accept: 'application/json', 'User-Agent': userAgent }),
+      barcode,
+    )
+    return {
+      results: result === null ? [] : [result],
+      page: 1,
+      hasMore: false,
+    }
   }
 }
