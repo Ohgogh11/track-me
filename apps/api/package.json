@@ -1,0 +1,27 @@
+{
+  "name": "@track-me/api",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "bun run --watch src/index.ts",
+    "start": "bun run src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test",
+    "db:generate": "drizzle-kit generate --config drizzle.config.ts",
+    "db:migrate": "bun run src/database/migrate.ts"
+  },
+  "dependencies": {
+    "@clerk/backend": "^2.16.0",
+    "@onebun/core": "0.4.0",
+    "@onebun/docs": "0.4.0",
+    "@track-me/contracts": "workspace:*",
+    "@track-me/database": "workspace:*",
+    "drizzle-orm": "^0.44.5"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.2.21",
+    "drizzle-kit": "^0.31.4",
+    "typescript": "^5.9.2"
+  }
+}

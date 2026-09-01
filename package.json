@@ -1,0 +1,28 @@
+{
+  "name": "track-me",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "bun run --filter @track-me/api --filter @track-me/mobile dev",
+    "dev:api": "bun run --filter @track-me/api dev",
+    "dev:mobile": "bun run --filter @track-me/mobile dev",
+    "typecheck": "bun run --filter '*' typecheck",
+    "test": "bun run --filter '*' test",
+    "lint": "biome check .",
+    "lint:fix": "biome check --write .",
+    "check": "bun run lint && bun run typecheck && bun run test",
+    "db:generate": "bun run --filter @track-me/api db:generate",
+    "db:migrate": "bun run --filter @track-me/api db:migrate",
+    "catalog:import": "bun run scripts/import-exercises.ts"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.2.2",
+    "@types/bun": "^1.2.21",
+    "typescript": "^5.9.2"
+  }
+}
