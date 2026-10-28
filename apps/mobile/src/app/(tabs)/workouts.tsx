@@ -1,22 +1,46 @@
 import {
   BUILT_IN_EXERCISES,
   calculateActiveSeconds,
+  detectPersonalRecords,
   type Exercise,
   type ExerciseVisibility,
   formatDuration,
+  isEligibleWorkSet,
   MUSCLE_GROUPS,
+  setVolumeKg,
+  type WorkoutSession,
 } from '@track-me/contracts'
 import { randomUUID } from 'expo-crypto'
 import { router } from 'expo-router'
 import { useMemo, useState } from 'react'
-import { Alert, StyleSheet, View } from 'react-native'
+import {
+  Alert,
+  KeyboardAvoidingView,
+  Modal,
+  Platform,
+  Pressable,
+  ScrollView,
+  StyleSheet,
+  TextInput,
+  View,
+} from 'react-native'
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context'
 import { ChipRow, ChoiceChip, SectionTitle, SegmentedControl } from '@/components/controls'
-import { AppText, Button, Card, EmptyState, Field, Heading, Screen } from '@/components/ui'
+import { AppIcon, IconButton, PageTitle, SectionHeader } from '@/components/design'
+import { AppText, Button, Card, EmptyState, Field, Screen } from '@/components/ui'
 import { createWorkoutTemplate, startWorkout } from '@/lib/factories'
 import { getDeviceId, useData } from '@/providers/data-provider'
 import { useAppTheme } from '@/theme/use-theme'
 
 type Mode = 'plans' | 'history' | 'exercises'
+
+function workoutSetStats(workout: WorkoutSession): { workSets: number; volumeKg: number } {
+  const sets = workout.exercises.flatMap((exercise) => exercise.sets.filter(isEligibleWorkSet))
+  return {
+    workSets: sets.length,
+    volumeKg: sets.reduce((total, set) => total + setVolumeKg(set), 0),
+  }
+}
 
 export default function WorkoutsScreen() {
   const data = useData()
@@ -33,8 +57,37 @@ export default function WorkoutsScreen() {
   const [primaryFilter, setPrimaryFilter] = useState<string | null>(null)
   const [secondaryFilter, setSecondaryFilter] = useState<string | null>(null)
   const [visibleExercises, setVisibleExercises] = useState(50)
+  const [showFilters, setShowFilters] = useState(false)
   const active = data.workouts.find((workout) => workout.status === 'active') ?? null
-  const history = data.workouts.filter((workout) => workout.status === 'completed')
+  const history = useMemo(
+    () =>
+      data.workouts
+        .filter((workout) => workout.status === 'completed')
+        .slice()
+        .sort(
+          (left, right) =>
+            Date.parse(right.completedAt ?? right.startedAt) -
+            Date.parse(left.completedAt ?? left.startedAt),
+        ),
+    [data.workouts],
+  )
+  const recordsByWorkout = useMemo(() => {
+    const counts = new Map<string, number>()
+    for (const record of detectPersonalRecords(data.workouts)) {
+      counts.set(record.workoutId, (counts.get(record.workoutId) ?? 0) + 1)
+    }
+    return counts
+  }, [data.workouts])
+  const historyActiveSeconds = history.reduce(
+    (total, workout) =>
+      total +
+      calculateActiveSeconds(
+        workout.timerSegments,
+        new Date(workout.completedAt ?? workout.startedAt),
+      ),
+    0,
+  )
+  const historyRecordCount = [...recordsByWorkout.values()].reduce((total, count) => total + count, 0)
   const hiddenBuiltIns = useMemo(() => {
     const hidden = new Set(
       data.exerciseVisibilities.filter((item) => item.hidden).map((item) => item.exerciseId),
@@ -111,12 +164,12 @@ export default function WorkoutsScreen() {
     router.push({ pathname: '/template/[id]', params: { id: plan.id } })
   }
 
-  const beginPlan = async (templateId: string) => {
+  const beginPlan = async (templateId: string | null) => {
     if (active !== null) {
       Alert.alert('Workout already active', 'Resume or finish your active workout before starting another.')
       return
     }
-    const template = data.templates.find((item) => item.id === templateId)
+    const template = templateId === null ? null : data.templates.find((item) => item.id === templateId)
     if (template === undefined) return
     const workout = startWorkout(await getDeviceId(), data.exercises, template)
     await data.save(workout)
@@ -124,8 +177,14 @@ export default function WorkoutsScreen() {
   }
 
   return (
-    <Screen>
-      <Heading subtitle="Plans are reusable. Each workout keeps its own snapshot.">Workouts</Heading>
+    <Screen safeBottom={false}>
+      <PageTitle
+        eyebrow="Training"
+        title="Build. Lift. Repeat."
+        accessory={
+          <IconButton icon="plus" label="Create workout plan" selected onPress={() => void createPlan()} />
+        }
+      />
       <SegmentedControl
         value={mode}
         onChange={setMode}
@@ -136,25 +195,33 @@ export default function WorkoutsScreen() {
         ]}
       />
 
-      {active !== null ? (
-        <Card style={{ borderColor: colors.primary }}>
-          <SectionTitle>Active now</SectionTitle>
-          <AppText style={styles.itemTitle}>{active.name}</AppText>
-          <AppText style={{ color: colors.textMuted }}>
-            {formatDuration(calculateActiveSeconds(active.timerSegments))} elapsed
-          </AppText>
-          <Button
-            title="Resume"
-            onPress={() => router.push({ pathname: '/workout/[id]', params: { id: active.id } })}
-          />
-        </Card>
+      {active !== null && mode === 'plans' ? (
+        <Pressable
+          accessibilityRole="button"
+          onPress={() => router.push({ pathname: '/workout/[id]', params: { id: active.id } })}
+          style={({ pressed }) => [
+            styles.resume,
+            { backgroundColor: colors.surfaceRaised, borderLeftColor: colors.primary },
+            pressed && styles.pressed,
+          ]}
+        >
+          <AppIcon name="timer-outline" color={colors.primary} />
+          <View style={styles.grow}>
+            <AppText style={styles.eyebrow}>ACTIVE WORKOUT</AppText>
+            <AppText style={styles.resumeName}>
+              {active.name} · {formatDuration(calculateActiveSeconds(active.timerSegments))}
+            </AppText>
+          </View>
+          <AppText style={[styles.resumeAction, { color: colors.primary }]}>Resume</AppText>
+        </Pressable>
       ) : null}
 
       {mode === 'plans' ? (
         <>
-          <SectionTitle action={<Button title="New plan" compact onPress={() => void createPlan()} />}>
-            Workout plans
-          </SectionTitle>
+          <SectionHeader
+            title="Your plans"
+            action={<AppText style={{ color: colors.textMuted }}>{data.templates.length} plans</AppText>}
+          />
           {data.templates.length === 0 ? (
             <EmptyState
               title="No plans yet"
@@ -162,57 +229,136 @@ export default function WorkoutsScreen() {
               action={<Button title="Create first plan" onPress={() => void createPlan()} />}
             />
           ) : (
-            data.templates.map((template) => (
-              <Card key={template.id}>
-                <AppText style={styles.itemTitle}>{template.name}</AppText>
-                <AppText style={{ color: colors.textMuted }}>
-                  {template.exercises.length} exercises ·{' '}
-                  {template.exercises.reduce((total, exercise) => total + exercise.sets.length, 0)} sets
-                </AppText>
-                <View style={styles.row}>
-                  <View style={styles.grow}>
-                    <Button title="Start" onPress={() => void beginPlan(template.id)} />
+            data.templates.map((template) => {
+              const setCount = template.exercises.reduce((total, exercise) => total + exercise.sets.length, 0)
+              return (
+                <Card
+                  key={template.id}
+                  style={[styles.planCard, { borderLeftColor: colors.primary }]}
+                >
+                  <AppText style={[styles.eyebrow, { color: colors.primary }]}>
+                    WORKOUT PLAN
+                  </AppText>
+                  <AppText style={styles.planTitle}>{template.name}</AppText>
+                  <AppText style={{ color: colors.textMuted }}>
+                    {template.notes || 'A reusable workout snapshot'}
+                  </AppText>
+                  <View style={styles.planStats}>
+                    <View>
+                      <AppText style={styles.planStatValue}>{template.exercises.length}</AppText>
+                      <AppText style={styles.planStatLabel}>exercises</AppText>
+                    </View>
+                    <View>
+                      <AppText style={styles.planStatValue}>{setCount}</AppText>
+                      <AppText style={styles.planStatLabel}>sets</AppText>
+                    </View>
                   </View>
-                  <Button
-                    title="Edit"
-                    variant="secondary"
-                    onPress={() => router.push({ pathname: '/template/[id]', params: { id: template.id } })}
-                  />
-                </View>
-              </Card>
-            ))
+                  <View style={styles.row}>
+                    <View style={styles.grow}>
+                      <Button icon="play" title="Start" onPress={() => void beginPlan(template.id)} />
+                    </View>
+                    <Button
+                      title="Edit plan"
+                      variant="outline"
+                      onPress={() => router.push({ pathname: '/template/[id]', params: { id: template.id } })}
+                    />
+                  </View>
+                </Card>
+              )
+            })
           )}
+          <Pressable
+            accessibilityRole="button"
+            onPress={() => void beginPlan(null)}
+            style={({ pressed }) => [
+              styles.dashedAction,
+              { borderColor: colors.border },
+              pressed && styles.pressed,
+            ]}
+          >
+            <AppIcon name="plus" color={colors.primary} />
+            <View>
+              <AppText style={styles.actionTitle}>Start empty workout</AppText>
+              <AppText style={{ color: colors.textMuted }}>Build it as you train</AppText>
+            </View>
+          </Pressable>
         </>
       ) : null}
 
       {mode === 'history' ? (
         <>
-          <SectionTitle>Completed workouts</SectionTitle>
+          <View style={[styles.historySummary, { backgroundColor: colors.surface }]}>
+            <View style={[styles.summaryCell, { borderRightColor: colors.border }]}>
+              <AppText style={styles.summaryValue}>{history.length}</AppText>
+              <AppText style={styles.summaryLabel}>WORKOUTS</AppText>
+            </View>
+            <View style={[styles.summaryCell, { borderRightColor: colors.border }]}>
+              <AppText numberOfLines={1} adjustsFontSizeToFit style={styles.summaryValue}>
+                {formatDuration(historyActiveSeconds)}
+              </AppText>
+              <AppText style={styles.summaryLabel}>TRAINING</AppText>
+            </View>
+            <View style={styles.summaryCell}>
+              <AppText style={styles.summaryValue}>{historyRecordCount}</AppText>
+              <AppText style={styles.summaryLabel}>PRs</AppText>
+            </View>
+          </View>
+          <SectionHeader title="Completed workouts" />
           {history.length === 0 ? (
             <EmptyState
               title="Nothing here yet"
               message="Completed workouts are editable and can be recovered from sync conflicts."
             />
           ) : (
-            history.map((workout) => (
-              <Card key={workout.id}>
-                <View style={styles.row}>
-                  <View style={styles.grow}>
-                    <AppText style={styles.itemTitle}>{workout.name}</AppText>
-                    <AppText style={{ color: colors.textMuted }}>
-                      {new Date(workout.completedAt ?? workout.startedAt).toLocaleString()} ·{' '}
-                      {workout.exercises.length} exercises
-                    </AppText>
-                  </View>
-                  <Button
-                    title="Open"
-                    compact
-                    variant="secondary"
-                    onPress={() => router.push({ pathname: '/history/[id]', params: { id: workout.id } })}
-                  />
+            history.map((workout) => {
+              const stats = workoutSetStats(workout)
+              const prCount = recordsByWorkout.get(workout.id) ?? 0
+              const duration = calculateActiveSeconds(
+                workout.timerSegments,
+                new Date(workout.completedAt ?? workout.startedAt),
+              )
+              return (
+                <Pressable
+                key={workout.id}
+                accessibilityRole="button"
+                onPress={() => router.push({ pathname: '/history/[id]', params: { id: workout.id } })}
+                style={({ pressed }) => [
+                  styles.historyRow,
+                  { borderBottomColor: colors.border },
+                  pressed && styles.pressed,
+                ]}
+              >
+                <View style={styles.dateTile}>
+                  <AppText style={[styles.dateDay, { color: colors.primary }]}>
+                    {new Date(workout.completedAt ?? workout.startedAt).getDate()}
+                  </AppText>
+                  <AppText style={styles.dateMonth}>
+                    {new Date(workout.completedAt ?? workout.startedAt)
+                      .toLocaleDateString(undefined, { month: 'short' })
+                      .toUpperCase()}
+                  </AppText>
                 </View>
-              </Card>
-            ))
+                <View style={styles.grow}>
+                  <AppText style={styles.itemTitle}>{workout.name}</AppText>
+                  <AppText numberOfLines={1} style={{ color: colors.textMuted }}>
+                    {[
+                      formatDuration(duration),
+                      `${stats.workSets} work sets`,
+                      stats.volumeKg > 0 ? `${Math.round(stats.volumeKg).toLocaleString()} kg` : null,
+                    ]
+                      .filter(Boolean)
+                      .join(' · ')}
+                  </AppText>
+                </View>
+                {prCount > 0 ? (
+                  <AppText style={[styles.prBadge, { color: colors.primary }]}>
+                    {prCount} PR
+                  </AppText>
+                ) : null}
+                <AppIcon name="chevron-right" color={colors.textMuted} />
+              </Pressable>
+              )
+            })
           )}
         </>
       ) : null}
@@ -225,10 +371,38 @@ export default function WorkoutsScreen() {
             Exercise catalog
           </SectionTitle>
           {showForm ? (
-            <Card>
-              <AppText style={styles.itemTitle}>
-                {editing === null ? 'Create exercise' : 'Edit exercise'}
-              </AppText>
+            <Modal
+              visible
+              animationType="slide"
+              presentationStyle="pageSheet"
+              onRequestClose={() => setShowForm(false)}
+            >
+              <SafeAreaProvider>
+                <SafeAreaView
+                  edges={['top', 'right', 'bottom', 'left']}
+                  style={[styles.modalSafe, { backgroundColor: colors.background }]}
+                >
+                  <KeyboardAvoidingView
+                    behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+                    style={styles.modalSafe}
+                  >
+                    <View style={[styles.modalHeader, { borderBottomColor: colors.border }]}>
+                      <View style={styles.grow}>
+                        <AppText style={[styles.eyebrow, { color: colors.primary }]}>
+                          PERSONAL EXERCISE
+                        </AppText>
+                        <AppText style={styles.modalTitle}>
+                          {editing === null ? 'Create exercise' : 'Edit exercise'}
+                        </AppText>
+                      </View>
+                      <Button title="Close" compact variant="ghost" onPress={() => setShowForm(false)} />
+                    </View>
+                    <ScrollView
+                      automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
+                      contentContainerStyle={styles.modalContent}
+                      keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+                      keyboardShouldPersistTaps="handled"
+                    >
               <Field label="Name" value={name} onChangeText={setName} placeholder="Cable fly" />
               <AppText style={styles.label}>Primary muscle</AppText>
               <ChipRow>
@@ -287,12 +461,17 @@ export default function WorkoutsScreen() {
                 />
               </View>
               <Button
+                icon="content-save-outline"
                 title="Save exercise"
                 disabled={name.trim().length < 2}
                 onPress={() => void saveExercise()}
               />
               <Button title="Cancel" variant="ghost" onPress={() => setShowForm(false)} />
-            </Card>
+                    </ScrollView>
+                  </KeyboardAvoidingView>
+                </SafeAreaView>
+              </SafeAreaProvider>
+            </Modal>
           ) : null}
           <Card>
             <Field
@@ -353,8 +532,14 @@ export default function WorkoutsScreen() {
             </AppText>
           </Card>
           {filteredExercises.slice(0, visibleExercises).map((exercise) => (
-            <Card key={exercise.id}>
+            <Card key={exercise.id} style={styles.exerciseRow}>
               <View style={styles.row}>
+                <View style={[styles.exerciseIcon, { backgroundColor: colors.surfaceRaised }]}>
+                  <AppIcon
+                    name={exercise.trackingMode === 'unilateral' ? 'human-handsup' : 'dumbbell'}
+                    color={colors.primary}
+                  />
+                </View>
                 <View style={styles.grow}>
                   <AppText style={styles.itemTitle}>{exercise.name}</AppText>
                   <AppText style={{ color: colors.textMuted }}>
@@ -459,4 +644,54 @@ const styles = StyleSheet.create({
   grow: { flex: 1, minWidth: 120 },
   itemTitle: { fontSize: 18, fontWeight: '800' },
   label: { fontSize: 14, fontWeight: '700' },
+  pressed: { opacity: 0.72 },
+  resume: {
+    minHeight: 62,
+    borderLeftWidth: 3,
+    borderRadius: 13,
+    padding: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  eyebrow: { fontSize: 11, fontWeight: '800', letterSpacing: 1 },
+  resumeName: { fontWeight: '800' },
+  resumeAction: { fontWeight: '800' },
+  planCard: { borderLeftWidth: 3 },
+  planTitle: { fontSize: 22, fontWeight: '900', letterSpacing: -0.4 },
+  planStats: { flexDirection: 'row', gap: 28, marginTop: 2 },
+  planStatValue: { fontSize: 18, fontWeight: '900' },
+  planStatLabel: { fontSize: 11, color: '#9AB5A3' },
+  dashedAction: {
+    minHeight: 58,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderRadius: 13,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 10,
+  },
+  actionTitle: { fontWeight: '800' },
+  historySummary: {
+    flexDirection: 'row',
+    borderRadius: 14,
+    paddingVertical: 13,
+    justifyContent: 'space-around',
+  },
+  summaryValue: { fontSize: 20, fontWeight: '900', textAlign: 'center' },
+  summaryLabel: { fontSize: 10, fontWeight: '800', color: '#9AB5A3', marginTop: 2 },
+  historyRow: {
+    minHeight: 70,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 11,
+    paddingVertical: 8,
+  },
+  dateTile: { width: 48, height: 48, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
+  dateDay: { fontSize: 18, fontWeight: '900' },
+  dateMonth: { fontSize: 9, fontWeight: '800', color: '#9AB5A3' },
+  exerciseRow: { padding: 11 },
+  exerciseIcon: { width: 40, height: 40, borderRadius: 11, alignItems: 'center', justifyContent: 'center' },
 })

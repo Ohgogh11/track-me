@@ -115,6 +115,7 @@ export function DataProvider({ children }: PropsWithChildren) {
   const refresh = useCallback(async () => {
     if (auth.userId === null) return
     const userId = auth.userId
+    await localStore.initialize()
     const [
       profiles,
       customExercises,
@@ -167,13 +168,22 @@ export function DataProvider({ children }: PropsWithChildren) {
     setSyncStatus((current) => ({ ...current, ...status }))
   }, [auth.userId])
 
+  const requestRefresh = useCallback(() => {
+    void refresh().catch((refreshError: unknown) => {
+      setError(refreshError instanceof Error ? refreshError.message : 'Refreshing local data failed')
+    })
+  }, [refresh])
+
   const synchronize = useCallback(async (): Promise<SyncResult> => {
     if (auth.userId === null) return { ok: false, message: 'Sign in before synchronizing.' }
     if (syncing.current) return { ok: false, message: 'Synchronization is already in progress.' }
     syncing.current = true
     setSyncStatus((current) => ({ ...current, syncing: true }))
     let result: SyncResult
+    let databaseReady = false
     try {
+      await localStore.initialize()
+      databaseReady = true
       const token = await auth.getToken()
       const id = await getDeviceId()
       let shouldContinue = true
@@ -192,13 +202,25 @@ export function DataProvider({ children }: PropsWithChildren) {
       result = { ok: true, message: 'Your local data and cloud data are up to date.' }
     } catch (syncError) {
       const message = syncError instanceof Error ? syncError.message : 'Synchronization failed'
-      await localStore.recordSyncError(auth.userId, message)
+      if (databaseReady) {
+        try {
+          await localStore.recordSyncError(auth.userId, message)
+        } catch {
+          // A sync failure must still resolve cleanly if recording its diagnostics fails.
+        }
+      }
       setError(message)
       result = { ok: false, message }
     } finally {
       syncing.current = false
       setSyncStatus((current) => ({ ...current, syncing: false }))
-      await refresh()
+      if (databaseReady) {
+        try {
+          await refresh()
+        } catch (refreshError) {
+          setError(refreshError instanceof Error ? refreshError.message : 'Refreshing local data failed')
+        }
+      }
     }
     return result
   }, [auth, refresh])
@@ -215,17 +237,20 @@ export function DataProvider({ children }: PropsWithChildren) {
       return
     }
     let active = true
-    localStore
-      .initialize()
-      .then(() => localStore.ensureUserDefaults(auth.userId as string))
-      .then(refresh)
-      .then(() => {
-        if (active) {
-          setReady(true)
-          void synchronize()
-        }
-      })
-      .catch((initializationError: unknown) => {
+    const userId = auth.userId
+    setReady(false)
+    setError(null)
+    void (async () => {
+      try {
+        await localStore.initialize()
+        if (!active) return
+        await localStore.ensureUserDefaults(userId)
+        if (!active) return
+        await refresh()
+        if (!active) return
+        setReady(true)
+        await synchronize()
+      } catch (initializationError: unknown) {
         if (active) {
           setError(
             initializationError instanceof Error
@@ -234,13 +259,14 @@ export function DataProvider({ children }: PropsWithChildren) {
           )
           setReady(true)
         }
-      })
-    const unsubscribe = localStore.subscribe(() => void refresh())
+      }
+    })()
+    const unsubscribe = localStore.subscribe(requestRefresh)
     return () => {
       active = false
       unsubscribe()
     }
-  }, [auth.isLoaded, auth.isSignedIn, auth.userId, refresh, synchronize])
+  }, [auth.isLoaded, auth.isSignedIn, auth.userId, refresh, requestRefresh, synchronize])
 
   useEffect(() => {
     if (!ready || !auth.isSignedIn) return

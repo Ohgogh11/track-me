@@ -2,13 +2,15 @@ import {
   type CompletedSet,
   calculateActiveSeconds,
   formatDuration,
+  getMuscleName,
   type WorkoutSession,
 } from '@track-me/contracts'
 import { randomUUID } from 'expo-crypto'
-import { router, useLocalSearchParams } from 'expo-router'
+import { router, Stack, useLocalSearchParams } from 'expo-router'
 import { useEffect, useMemo, useState } from 'react'
-import { Alert, Pressable, StyleSheet, View } from 'react-native'
-import { SectionTitle } from '@/components/controls'
+import { Alert, Modal, Pressable, StyleSheet, View } from 'react-native'
+import { ProgressBar } from '@/components/controls'
+import { AppIcon, IconButton } from '@/components/design'
 import { AppText, Button, Card, EmptyState, Field, Screen } from '@/components/ui'
 import {
   RestEditorModal,
@@ -377,38 +379,78 @@ export default function ActiveWorkoutScreen() {
     router.replace({ pathname: '/history/[id]', params: { id: completed.id } })
   }
 
+  const completedSetCount = draft.exercises.reduce(
+    (total, exercise) => total + exercise.sets.filter((set) => set.status === 'completed').length,
+    0,
+  )
+  const totalSetCount = draft.exercises.reduce((total, exercise) => total + exercise.sets.length, 0)
+
+  const discard = () =>
+    Alert.alert('Discard workout?', 'This removes the session from your devices after synchronization.', [
+      { text: 'Cancel', style: 'cancel' },
+      {
+        text: 'Discard',
+        style: 'destructive',
+        onPress: () => {
+          void cancelRestTimer(rest?.notificationId ?? null)
+          void data.remove(draft).then(() => router.replace('/(tabs)/workouts'))
+        },
+      },
+    ])
+
   return (
-    <Screen>
-      <Card style={{ borderColor: paused ? colors.warning : colors.primary }}>
+    <Screen safeTop contentStyle={styles.screen}>
+      <Stack.Screen options={{ headerShown: false }} />
+      <View style={[styles.subtop, { borderBottomColor: colors.border }]}>
+        <IconButton icon="chevron-left" label="Back to training" onPress={() => router.back()} />
+        <View style={styles.headerTitle}>
+          <AppText style={[styles.eyebrow, { color: colors.textMuted }]}>ACTIVE WORKOUT</AppText>
+          <AppText numberOfLines={1} style={styles.workoutName}>
+            {draft.name}
+          </AppText>
+        </View>
+        <Pressable accessibilityRole="button" onPress={discard} style={styles.headerAction}>
+          <AppText style={{ color: colors.danger }}>Discard</AppText>
+        </Pressable>
+      </View>
+      <View style={styles.clock}>
         <View style={styles.row}>
           <View style={styles.grow}>
-            <AppText style={styles.workoutName}>{draft.name}</AppText>
-            <AppText style={[styles.timer, { color: paused ? colors.warning : colors.primary }]}>
+            <AppText style={[styles.timer, { color: paused ? colors.warning : colors.text }]}>
               {formatDuration(calculateActiveSeconds(draft.timerSegments))}
             </AppText>
-            <AppText style={{ color: colors.textMuted }}>
-              {paused ? 'Paused — your elapsed time is safe' : 'Workout timer running'}
+            <AppText style={[styles.eyebrow, { color: colors.textMuted }]}>
+              {paused ? 'PAUSED' : 'ACTIVE TIME'}
             </AppText>
           </View>
           <Button
             title={paused ? 'Resume' : 'Pause'}
+            icon={paused ? 'play' : 'pause'}
             compact
-            variant="secondary"
+            variant="outline"
             onPress={() => void togglePause()}
           />
         </View>
-      </Card>
+      </View>
 
       {rest !== null ? (
-        <Card style={{ borderColor: remaining === 0 ? colors.primary : colors.warning }}>
+        <Card
+          style={[
+            styles.restCard,
+            {
+              backgroundColor: colors.surfaceRaised,
+              borderLeftColor: remaining === 0 ? colors.primary : colors.warning,
+            },
+          ]}
+        >
           <View style={styles.row}>
+            <AppIcon name="timer-sand" color={remaining === 0 ? colors.primary : colors.warning} />
             <View style={styles.grow}>
-              <AppText style={[styles.restTitle, { color: remaining === 0 ? colors.primary : colors.text }]}>
-                {remaining === 0 ? 'Rest complete' : `Rest ${formatDuration(remaining)}`}
+              <AppText style={[styles.eyebrow, { color: colors.textMuted }]}>
+                {remaining === 0 ? 'REST COMPLETE' : 'RESTING BETWEEN SETS'}
               </AppText>
-              <AppText style={{ color: colors.textMuted }}>
-                Elapsed {formatDuration(elapsed)}
-                {remaining > 0 ? ' · Start the next set whenever you are ready' : ''}
+              <AppText style={[styles.restTitle, { color: colors.primary }]}>
+                {formatDuration(remaining === 0 ? elapsed : remaining)}
               </AppText>
             </View>
             {remaining === 0 ? <Button title="OK" compact onPress={() => void acknowledgeRest()} /> : null}
@@ -416,13 +458,27 @@ export default function ActiveWorkoutScreen() {
         </Card>
       ) : null}
 
-      <SectionTitle
-        action={<Button title="Add exercise" compact onPress={() => setAddingExercise((value) => !value)} />}
-      >
-        Session exercises
-      </SectionTitle>
-      {addingExercise ? (
-        <Card>
+      <View style={styles.progress}>
+        <View style={styles.progressLabel}>
+          <AppText style={{ color: colors.textMuted }}>
+            {completedSetCount} of {totalSetCount} sets
+          </AppText>
+          <AppText style={{ color: colors.primary }}>
+            {totalSetCount === 0 ? 0 : Math.round((completedSetCount / totalSetCount) * 100)}%
+          </AppText>
+        </View>
+        <ProgressBar value={completedSetCount} max={totalSetCount} />
+      </View>
+      <Modal visible={addingExercise} animationType="slide" onRequestClose={() => setAddingExercise(false)}>
+        <Screen safeTop>
+          <View style={styles.row}>
+            <AppText style={[styles.exerciseName, styles.grow]}>Add exercise</AppText>
+            <IconButton
+              icon="close"
+              label="Close exercise library"
+              onPress={() => setAddingExercise(false)}
+            />
+          </View>
           <Field
             label="Search exercises"
             value={exerciseSearch}
@@ -450,8 +506,8 @@ export default function ActiveWorkoutScreen() {
               Showing the first 50 matches. Refine your search.
             </AppText>
           ) : null}
-        </Card>
-      ) : null}
+        </Screen>
+      </Modal>
       {draft.exercises.length === 0 ? (
         <EmptyState
           title="Empty workout"
@@ -465,49 +521,58 @@ export default function ActiveWorkoutScreen() {
         const active = activeSet?.exerciseIndex === exerciseIndex
         return (
           <Card key={exercise.id} style={styles.exerciseCard}>
-            <Pressable
-              accessibilityRole="button"
-              accessibilityState={{ expanded }}
-              onPress={() => setExpandedId(expanded ? null : exercise.id)}
-              style={({ pressed }) => [styles.accordionHeader, pressed && styles.pressed]}
-            >
-              <View style={styles.grow}>
-                <View style={styles.titleRow}>
-                  {active ? <View style={[styles.dot, { backgroundColor: colors.primary }]} /> : null}
-                  <AppText style={styles.exerciseName}>
-                    {exerciseIndex + 1}. {exercise.exerciseName}
+            <View style={styles.headerRow}>
+              <Pressable
+                accessibilityRole="button"
+                accessibilityState={{ expanded }}
+                onPress={() => setExpandedId(expanded ? null : exercise.id)}
+                style={({ pressed }) => [styles.accordionHeader, pressed && styles.pressed]}
+              >
+                <AppText style={[styles.exerciseNumber, { color: colors.primary }]}>
+                  {String(exerciseIndex + 1).padStart(2, '0')}
+                </AppText>
+                <View style={styles.grow}>
+                  <View style={styles.titleRow}>
+                    {active ? <View style={[styles.dot, { backgroundColor: colors.primary }]} /> : null}
+                    <AppText style={styles.exerciseName}>{exercise.exerciseName}</AppText>
+                  </View>
+                  <AppText
+                    style={[styles.exerciseMeta, { color: active ? colors.primary : colors.textMuted }]}
+                  >
+                    {completed} / {exercise.sets.length} sets ·{' '}
+                    {exercise.trackingMode === 'unilateral'
+                      ? 'Left / right'
+                      : getMuscleName(exercise.primaryMuscleId)}
+                    {active ? ' · Active' : ''}
                   </AppText>
                 </View>
-                <AppText style={{ color: active ? colors.primary : colors.textMuted }}>
-                  {completed}/{exercise.sets.length} sets complete{active ? ' · active set' : ''}
-                </AppText>
-              </View>
-              <AppText style={[styles.chevron, { color: colors.primary }]}>{expanded ? '⌃' : '⌄'}</AppText>
-            </Pressable>
+                <AppIcon name={expanded ? 'chevron-up' : 'chevron-down'} size={18} color={colors.textMuted} />
+              </Pressable>
+              <IconButton
+                icon="dots-vertical"
+                label={`Options for ${exercise.exerciseName}`}
+                onPress={() =>
+                  Alert.alert(exercise.exerciseName, 'Exercise options', [
+                    {
+                      text: 'Exercise details',
+                      onPress: () =>
+                        router.push({ pathname: '/exercise/[id]', params: { id: exercise.exerciseId } }),
+                    },
+                    {
+                      text: 'Remove exercise',
+                      style: 'destructive',
+                      onPress: () => removeExercise(exerciseIndex),
+                    },
+                    { text: 'Cancel', style: 'cancel' },
+                  ])
+                }
+              />
+            </View>
 
             {expanded ? (
               <View style={[styles.body, { borderTopColor: colors.border }]}>
-                <View style={styles.row}>
-                  <AppText style={[styles.note, { color: colors.textMuted }]}>
-                    Start one set at a time. Rest targets are read-only here.
-                  </AppText>
-                  <Button
-                    title="Exercise info"
-                    compact
-                    variant="ghost"
-                    onPress={() =>
-                      router.push({ pathname: '/exercise/[id]', params: { id: exercise.exerciseId } })
-                    }
-                  />
-                  <Button
-                    title="Remove exercise"
-                    compact
-                    variant="ghost"
-                    onPress={() => removeExercise(exerciseIndex)}
-                  />
-                </View>
                 {exercise.sets.length > 0 ? (
-                  <WorkoutSetColumns unilateral={exercise.trackingMode === 'unilateral'} />
+                  <WorkoutSetColumns unilateral={exercise.trackingMode === 'unilateral'} unit={unit} />
                 ) : null}
                 {exercise.sets.map((set, setIndex) => (
                   <WorkoutSetRow
@@ -532,8 +597,9 @@ export default function ActiveWorkoutScreen() {
                 ))}
                 <Button
                   title="Add set"
+                  icon="plus"
                   compact
-                  variant="secondary"
+                  variant="dashed"
                   onPress={() => {
                     const set: CompletedSet = {
                       ...createPrescription(exercise.sets.length),
@@ -561,24 +627,23 @@ export default function ActiveWorkoutScreen() {
         )
       })}
 
-      <Button title="Finish workout" onPress={() => void finish()} />
-      <Button
-        title="Discard workout"
-        variant="danger"
-        onPress={() =>
-          Alert.alert('Discard workout?', 'This removes the local session and syncs a tombstone.', [
-            { text: 'Cancel', style: 'cancel' },
-            {
-              text: 'Discard',
-              style: 'destructive',
-              onPress: () => {
-                void cancelRestTimer(rest?.notificationId ?? null)
-                void data.remove(draft).then(() => router.replace('/(tabs)/workouts'))
-              },
-            },
-          ])
-        }
-      />
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel="Add exercise"
+        onPress={() => setAddingExercise(true)}
+        style={[styles.addExercise, { borderColor: colors.border }]}
+      >
+        <AppIcon name="plus" color={colors.primary} />
+        <View>
+          <AppText style={{ color: colors.primary }}>Add exercise</AppText>
+          <AppText style={[styles.exerciseMeta, { color: colors.textMuted }]}>
+            Search the full library
+          </AppText>
+        </View>
+      </Pressable>
+      <View style={styles.finish}>
+        <Button title="Finish workout" icon="flag-outline" onPress={() => void finish()} />
+      </View>
       <RestEditorModal
         target={restEditor}
         onClose={() => setRestEditor(null)}
@@ -594,25 +659,57 @@ export default function ActiveWorkoutScreen() {
 }
 
 const styles = StyleSheet.create({
+  screen: { padding: 12, paddingTop: 0, gap: 8 },
+  subtop: {
+    minHeight: 58,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    borderBottomWidth: StyleSheet.hairlineWidth,
+    marginHorizontal: -12,
+    paddingHorizontal: 8,
+  },
+  headerTitle: { flex: 1, minWidth: 0, alignItems: 'center', gap: 2 },
+  headerAction: { minWidth: 64, minHeight: 44, justifyContent: 'center', alignItems: 'center' },
+  eyebrow: { fontSize: 10, letterSpacing: 0.7 },
   row: { flexDirection: 'row', alignItems: 'center', gap: 10 },
   grow: { flex: 1, minWidth: 0 },
   pressed: { opacity: 0.72 },
-  workoutName: { fontSize: 21, fontWeight: '800' },
-  timer: { fontSize: 36, fontWeight: '900', fontVariant: ['tabular-nums'] },
-  restTitle: { fontSize: 25, fontWeight: '900', fontVariant: ['tabular-nums'] },
+  workoutName: { fontSize: 15, fontWeight: '600' },
+  timer: { fontSize: 24, fontWeight: '600', fontVariant: ['tabular-nums'] },
+  restTitle: { fontSize: 20, fontWeight: '600', fontVariant: ['tabular-nums'] },
+  clock: { paddingHorizontal: 6, paddingVertical: 8 },
+  restCard: { borderLeftWidth: 3, padding: 12, borderRadius: 12 },
+  progress: { gap: 7, paddingHorizontal: 2, paddingBottom: 8 },
+  progressLabel: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
   exerciseCard: { padding: 0, gap: 0, overflow: 'hidden' },
+  headerRow: { flexDirection: 'row', alignItems: 'center' },
   accordionHeader: {
-    minHeight: 66,
-    paddingHorizontal: 15,
-    paddingVertical: 12,
+    flex: 1,
+    minWidth: 0,
+    minHeight: 60,
+    paddingLeft: 12,
+    paddingVertical: 8,
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 8,
   },
   titleRow: { flexDirection: 'row', alignItems: 'center', gap: 7 },
-  exerciseName: { flexShrink: 1, fontSize: 18, fontWeight: '800' },
+  exerciseName: { flexShrink: 1, fontSize: 14, fontWeight: '600' },
+  exerciseNumber: { width: 26, fontSize: 13, fontWeight: '600' },
+  exerciseMeta: { fontSize: 11, marginTop: 2 },
   dot: { width: 8, height: 8, borderRadius: 4 },
-  chevron: { fontSize: 24, fontWeight: '900' },
-  body: { padding: 12, paddingTop: 10, gap: 10, borderTopWidth: 1 },
-  note: { flex: 1, fontSize: 11, lineHeight: 15 },
+  body: { padding: 10, gap: 6, borderTopWidth: 1 },
+  addExercise: {
+    minHeight: 56,
+    borderWidth: 1,
+    borderStyle: 'dashed',
+    borderRadius: 13,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 9,
+    marginTop: 4,
+  },
+  finish: { marginTop: 4 },
 })

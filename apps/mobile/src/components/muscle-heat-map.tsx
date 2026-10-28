@@ -1,4 +1,5 @@
 import type { MuscleInsight } from '@track-me/contracts'
+import { useState } from 'react'
 import { StyleSheet, View } from 'react-native'
 import Body, { type ExtendedBodyPart, type Slug } from 'react-native-body-highlighter'
 import { AppText } from '@/components/ui'
@@ -90,8 +91,10 @@ export function MuscleHeatMap({
   onSelect: (muscleId: string) => void
 }) {
   const { colors } = useAppTheme()
+  const [availableWidth, setAvailableWidth] = useState(288)
   const scores = new Map(insights.map((insight) => [insight.muscleId, insight.heatScore]))
   const maximum = Math.max(0, ...insights.map((insight) => insight.heatScore))
+  const bodyScale = Math.min(0.78, Math.max(0.55, (availableWidth - 16) / 400))
 
   const dataFor = (mappings: MuscleMapping[]): ExtendedBodyPart[] =>
     mappings.map((mapping) => {
@@ -113,14 +116,17 @@ export function MuscleHeatMap({
   }
 
   return (
-    <View style={[styles.wrap, { backgroundColor: colors.surfaceRaised }]}>
+    <View
+      style={[styles.wrap, { backgroundColor: colors.surfaceRaised }]}
+      onLayout={(event) => setAvailableWidth(event.nativeEvent.layout.width)}
+    >
       <View style={styles.bodies}>
         <View style={styles.body}>
           <Body
             data={dataFor(FRONT_MUSCLES)}
             gender="male"
             side="front"
-            scale={0.78}
+            scale={bodyScale}
             border={colors.border}
             defaultFill={colors.surface}
             defaultStroke={colors.border}
@@ -133,7 +139,7 @@ export function MuscleHeatMap({
             data={dataFor(BACK_MUSCLES)}
             gender="male"
             side="back"
-            scale={0.78}
+            scale={bodyScale}
             border={colors.border}
             defaultFill={colors.surface}
             defaultStroke={colors.border}

@@ -1,8 +1,19 @@
 import * as Haptics from 'expo-haptics'
-import * as Notifications from 'expo-notifications'
+// Local-only imports avoid the barrel's remote-push registration side effect in Expo Go.
+import cancelScheduledNotificationAsync from 'expo-notifications/build/cancelScheduledNotificationAsync'
+import getAllScheduledNotificationsAsync from 'expo-notifications/build/getAllScheduledNotificationsAsync'
+import { AndroidImportance } from 'expo-notifications/build/NotificationChannelManager.types'
+import {
+  getPermissionsAsync,
+  requestPermissionsAsync,
+} from 'expo-notifications/build/NotificationPermissions'
+import { SchedulableTriggerInputTypes } from 'expo-notifications/build/Notifications.types'
+import { setNotificationHandler } from 'expo-notifications/build/NotificationsHandler'
+import scheduleNotificationAsync from 'expo-notifications/build/scheduleNotificationAsync'
+import setNotificationChannelAsync from 'expo-notifications/build/setNotificationChannelAsync'
 import { Platform } from 'react-native'
 
-Notifications.setNotificationHandler({
+setNotificationHandler({
   handleNotification: async () => ({
     shouldShowBanner: true,
     shouldShowList: true,
@@ -13,9 +24,9 @@ Notifications.setNotificationHandler({
 
 export async function configureRestNotifications(): Promise<void> {
   if (Platform.OS === 'android') {
-    await Notifications.setNotificationChannelAsync('rest-timers', {
+    await setNotificationChannelAsync('rest-timers', {
       name: 'Rest timers',
-      importance: Notifications.AndroidImportance.HIGH,
+      importance: AndroidImportance.HIGH,
       vibrationPattern: [0, 250, 150, 250],
     })
   }
@@ -24,13 +35,11 @@ export async function configureRestNotifications(): Promise<void> {
 export async function scheduleRestTimer(seconds: number, setId: string): Promise<string | null> {
   if (seconds <= 0) return null
   await Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium)
-  const permission = await Notifications.getPermissionsAsync()
+  const permission = await getPermissionsAsync()
   const status =
-    permission.status === 'granted'
-      ? permission.status
-      : (await Notifications.requestPermissionsAsync()).status
+    permission.status === 'granted' ? permission.status : (await requestPermissionsAsync()).status
   if (status !== 'granted') return null
-  return Notifications.scheduleNotificationAsync({
+  return scheduleNotificationAsync({
     content: {
       title: 'Rest complete',
       body: 'Your next set is ready.',
@@ -38,7 +47,7 @@ export async function scheduleRestTimer(seconds: number, setId: string): Promise
       data: { kind: 'rest-timer', setId },
     },
     trigger: {
-      type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
+      type: SchedulableTriggerInputTypes.TIME_INTERVAL,
       seconds,
       repeats: false,
       ...(Platform.OS === 'android' ? { channelId: 'rest-timers' } : {}),
@@ -47,10 +56,11 @@ export async function scheduleRestTimer(seconds: number, setId: string): Promise
 }
 
 export async function cancelRestTimer(notificationId: string | null): Promise<void> {
-  if (notificationId !== null) await Notifications.cancelScheduledNotificationAsync(notificationId)
+  if (notificationId === null) return
+  await cancelScheduledNotificationAsync(notificationId)
 }
 
 export async function findScheduledRestTimer(setId: string): Promise<string | null> {
-  const scheduled = await Notifications.getAllScheduledNotificationsAsync()
+  const scheduled = await getAllScheduledNotificationsAsync()
   return scheduled.find((notification) => notification.content.data?.setId === setId)?.identifier ?? null
 }

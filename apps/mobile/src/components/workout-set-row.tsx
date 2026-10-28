@@ -50,7 +50,7 @@ function CompactInput({
       style={[
         styles.input,
         {
-          backgroundColor: colors.surfaceRaised,
+          backgroundColor: '#09100B',
           borderColor: colors.border,
           color: colors.text,
         },
@@ -67,43 +67,60 @@ function Action({
 }: {
   label: string
   accessibilityLabel: string
-  variant: 'start' | 'complete' | 'remove'
+  variant: 'start' | 'active' | 'complete' | 'remove'
   onPress: () => void
 }) {
   const { colors } = useAppTheme()
   const foreground =
-    variant === 'complete' ? colors.primaryText : variant === 'remove' ? colors.danger : colors.primary
+    variant === 'active' || variant === 'start'
+      ? colors.primaryText
+      : variant === 'remove'
+        ? colors.textMuted
+        : colors.primary
   return (
     <Pressable
       accessibilityRole="button"
       accessibilityLabel={accessibilityLabel}
-      hitSlop={4}
       onPress={onPress}
-      style={({ pressed }) => [
-        styles.action,
-        {
-          backgroundColor: variant === 'complete' ? colors.primary : colors.surfaceRaised,
-          borderColor: variant === 'remove' ? colors.danger : colors.border,
-        },
-        pressed && styles.pressed,
-      ]}
+      style={({ pressed }) => [styles.action, pressed && styles.pressed]}
     >
-      <AppText style={[styles.actionText, { color: foreground }]}>{label}</AppText>
+      <View
+        style={[
+          styles.actionVisual,
+          {
+            backgroundColor:
+              variant === 'active' || variant === 'start'
+                ? colors.primary
+                : variant === 'complete'
+                  ? '#193221'
+                  : 'transparent',
+            borderColor: variant === 'remove' ? colors.border : 'transparent',
+          },
+        ]}
+      >
+        <AppText style={[styles.actionText, { color: foreground }]}>{label}</AppText>
+      </View>
     </Pressable>
   )
 }
 
-export function WorkoutSetColumns({ unilateral = false }: { unilateral?: boolean }) {
+export function WorkoutSetColumns({
+  unilateral = false,
+  unit = 'kg',
+}: {
+  unilateral?: boolean
+  unit?: WeightUnit
+}) {
   const { colors } = useAppTheme()
   const textStyle = [styles.columnText, { color: colors.textMuted }]
   return (
-    <View style={styles.row}>
+    <View style={[styles.row, styles.columns]}>
       <AppText style={[styles.identity, ...textStyle]}>{unilateral ? 'Set/side' : 'Set'}</AppText>
-      <AppText style={[styles.inputCell, ...textStyle]}>Weight</AppText>
-      <AppText style={[styles.inputCell, ...textStyle]}>Reps</AppText>
-      <AppText style={[styles.inputCell, ...textStyle]}>RPE</AppText>
-      <View style={styles.completeCell} />
-      <View style={styles.removeCell} />
+      <AppText style={[styles.inputColumn, ...textStyle]}>{unit.toUpperCase()}</AppText>
+      <AppText style={[styles.inputColumn, ...textStyle]}>Reps</AppText>
+      <AppText style={[styles.inputColumn, ...textStyle]}>RPE</AppText>
+      <View style={styles.actionColumn} />
+      <View style={styles.actionColumn} />
     </View>
   )
 }
@@ -148,7 +165,7 @@ function PerformanceInputs({
         <CompactInput
           label={`${prefix} reps`}
           keyboardType="number-pad"
-          placeholder={`${targets.targetReps.min}–${targets.targetReps.max}`}
+          placeholder="—"
           value={result.actualReps === null ? '' : String(result.actualReps)}
           onChangeText={(value) => {
             const parsed = nullableNumber(value)
@@ -217,36 +234,28 @@ export function WorkoutSetRow({
       },
     })
   return (
-    <View
-      style={[
-        styles.block,
-        { borderColor: active || completed ? colors.primary : colors.border },
-        active && { backgroundColor: colors.surfaceRaised },
-      ]}
-    >
+    <View style={[styles.block, active && { backgroundColor: colors.surfaceRaised }]}>
       <View style={styles.row}>
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={`Set ${setIndex + 1}, ${set.type}`}
           onPress={onChooseType}
-          style={styles.identity}
+          hitSlop={4}
+          style={[styles.identity, styles.typeTarget]}
         >
-          <AppText style={styles.setNumber}>
-            {setIndex + 1}
-            {trackingMode === 'unilateral' ? ' L' : ''}
-          </AppText>
+          {trackingMode === 'unilateral' ? (
+            <AppText style={[styles.sideLabel, { color: colors.primary }]}>L</AppText>
+          ) : null}
           <View
             style={[
               styles.badge,
               {
-                backgroundColor: set.type === 'work' ? colors.primary : colors.surface,
-                borderColor: colors.primary,
+                backgroundColor: set.type === 'work' ? '#193221' : colors.surface,
+                borderColor: colors.border,
               },
             ]}
           >
-            <AppText
-              style={[styles.badgeText, { color: set.type === 'work' ? colors.primaryText : colors.primary }]}
-            >
+            <AppText style={[styles.badgeText, { color: colors.primary }]}>
               {set.type === 'work' ? 'W' : 'WU'}
             </AppText>
           </View>
@@ -272,7 +281,7 @@ export function WorkoutSetRow({
                   ? `Complete set ${setIndex + 1}`
                   : `Start set ${setIndex + 1}`
             }
-            variant={completed || active ? 'complete' : 'start'}
+            variant={completed ? 'complete' : active ? 'active' : 'start'}
             onPress={completed || active ? onComplete : onStart}
           />
         </View>
@@ -318,6 +327,7 @@ export function WorkoutSetRow({
               accessibilityRole="button"
               accessibilityLabel={`Edit rest for set ${setIndex + 1}`}
               onPress={onEditRest}
+              style={styles.restTarget}
             >
               <AppText style={[styles.rest, { color: colors.primary }]}>
                 Rest {formatDuration(set.actualRestSeconds)}
@@ -382,55 +392,66 @@ export function RestEditorModal({
 const styles = StyleSheet.create({
   pressed: { opacity: 0.72 },
   flex: { flex: 1 },
-  block: { borderWidth: 1, borderRadius: 11, padding: 7, gap: 6 },
-  row: { flexDirection: 'row', alignItems: 'center', gap: 5 },
-  identity: { width: 33, alignItems: 'center', justifyContent: 'center', gap: 2 },
-  setNumber: { fontSize: 12, fontWeight: '900' },
-  sideLabel: { fontSize: 12, fontWeight: '900' },
+  block: { borderRadius: 10, gap: 2, paddingBottom: 6 },
+  row: { flexDirection: 'row', alignItems: 'center', gap: 4 },
+  columns: { paddingBottom: 2 },
+  identity: { width: 36, alignItems: 'center', justifyContent: 'center', gap: 2 },
+  typeTarget: { minHeight: 44 },
+  sideLabel: { fontSize: 10, fontWeight: '600' },
   badge: {
-    minWidth: 28,
-    height: 18,
+    minWidth: 32,
+    minHeight: 28,
     paddingHorizontal: 3,
-    borderRadius: 5,
+    borderRadius: 8,
     borderWidth: 1,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  badgeText: { fontSize: 9, fontWeight: '900' },
-  inputCell: { flex: 1, minWidth: 0 },
+  badgeText: { fontSize: 11, fontWeight: '600' },
+  inputCell: { flex: 1, minWidth: 0, minHeight: 44, justifyContent: 'center' },
+  inputColumn: { flex: 1, minWidth: 0 },
   input: {
     width: '100%',
     height: 38,
     borderWidth: 1,
     borderRadius: 8,
-    paddingHorizontal: 4,
+    paddingHorizontal: 2,
     paddingVertical: 0,
-    fontSize: 14,
-    fontWeight: '700',
+    fontSize: 13,
+    fontWeight: '500',
     textAlign: 'center',
     fontVariant: ['tabular-nums'],
   },
-  completeCell: { width: 48 },
-  removeCell: { width: 40 },
+  completeCell: { width: 44, minHeight: 44, justifyContent: 'center' },
+  removeCell: { width: 44, minHeight: 44, justifyContent: 'center' },
+  actionColumn: { width: 44 },
   action: {
-    width: '100%',
+    width: 44,
     height: 44,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  actionVisual: {
+    width: 38,
+    height: 38,
     borderWidth: 1,
     borderRadius: 9,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  actionText: { fontSize: 13, fontWeight: '900' },
-  columnText: { fontSize: 10, textAlign: 'center', fontWeight: '800', textTransform: 'uppercase' },
+  actionText: { fontSize: 12, fontWeight: '600' },
+  columnText: { fontSize: 10, textAlign: 'center', fontWeight: '500', textTransform: 'uppercase' },
   meta: {
-    minHeight: 20,
+    minHeight: 16,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'space-between',
     gap: 8,
+    paddingLeft: 40,
   },
-  hint: { flex: 1, fontSize: 11, lineHeight: 15 },
-  rest: { fontSize: 12, fontWeight: '800' },
+  hint: { flex: 1, fontSize: 10, lineHeight: 14 },
+  rest: { fontSize: 11, fontWeight: '500' },
+  restTarget: { minHeight: 44, justifyContent: 'center' },
   overlay: { flex: 1, justifyContent: 'center', padding: 22 },
   modal: { width: '100%', maxWidth: 420, alignSelf: 'center' },
   modalTitle: { fontSize: 21, fontWeight: '900' },

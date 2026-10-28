@@ -13,7 +13,7 @@
     "test": "bun test src/**/*.test.ts"
   },
   "dependencies": {
-    "@clerk/expo": "^3.0.0",
+    "@clerk/expo": "^4.7.1",
     "@expo/vector-icons": "^15.0.3",
     "@react-native-community/netinfo": "11.4.1",
     "@track-me/contracts": "workspace:*",

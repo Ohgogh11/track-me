@@ -2,6 +2,7 @@ import { useSignUp } from '@clerk/expo'
 import { Redirect, router } from 'expo-router'
 import { useState } from 'react'
 import { StyleSheet, View } from 'react-native'
+import { AuthFrame } from '@/components/design'
 import { AppText, Button, Card, Field, Heading, Screen } from '@/components/ui'
 import { isClerkConfigured, useAppAuth } from '@/providers/auth-provider'
 
@@ -63,7 +64,11 @@ function ClerkSignUpForm() {
   }
 
   return (
-    <Card>
+    <Card style={styles.authCard}>
+      <View style={styles.welcome}>
+        <AppText style={styles.title}>Create your account.</AppText>
+        <AppText style={styles.subtitle}>Your first workout can stay offline.</AppText>
+      </View>
       <Field
         label="Email"
         autoCapitalize="none"
@@ -99,15 +104,19 @@ export default function SignUpScreen() {
   if (auth.isSignedIn) return <Redirect href="/(tabs)" />
   if (!isClerkConfigured) return <Redirect href="/(auth)/sign-in" />
   return (
-    <Screen>
-      <View style={styles.centered}>
+    <Screen safeTop contentStyle={styles.screen}>
+      <AuthFrame>
         <ClerkSignUpForm />
-      </View>
+      </AuthFrame>
     </Screen>
   )
 }
 
 const styles = StyleSheet.create({
-  centered: { flex: 1, width: '100%', maxWidth: 440, alignSelf: 'center', justifyContent: 'center' },
-  error: { color: '#DC2626', fontSize: 13 },
+  screen: { paddingHorizontal: 24, paddingBottom: 18 },
+  authCard: { padding: 0, borderWidth: 0, backgroundColor: 'transparent', gap: 14 },
+  welcome: { alignItems: 'center', gap: 4, marginBottom: 8 },
+  title: { fontSize: 24, fontWeight: '600', letterSpacing: -0.7 },
+  subtitle: { color: '#9AB5A3', textAlign: 'center' },
+  error: { color: '#FF5C5C', fontSize: 13 },
 })

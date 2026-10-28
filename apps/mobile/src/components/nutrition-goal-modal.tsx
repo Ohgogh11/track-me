@@ -10,7 +10,8 @@ import {
 } from '@track-me/contracts'
 import { randomUUID } from 'expo-crypto'
 import { useEffect, useMemo, useState } from 'react'
-import { Alert, Modal, ScrollView, StyleSheet, View } from 'react-native'
+import { Alert, KeyboardAvoidingView, Modal, Platform, ScrollView, StyleSheet, View } from 'react-native'
+import { SafeAreaProvider, SafeAreaView } from 'react-native-safe-area-context'
 import { ChipRow, ChoiceChip, SectionTitle, SegmentedControl } from '@/components/controls'
 import { AppText, Button, Card, Field } from '@/components/ui'
 import { useData } from '@/providers/data-provider'
@@ -139,153 +140,166 @@ export function NutritionGoalModal({
 
   return (
     <Modal visible={visible} animationType="slide" presentationStyle="pageSheet" onRequestClose={onClose}>
-      <View style={[styles.modal, { backgroundColor: colors.background }]}>
-        <View style={[styles.header, { borderBottomColor: colors.border }]}>
-          <AppText style={styles.title}>Suggested nutrition targets</AppText>
-          <Button title="Close" compact variant="ghost" onPress={onClose} />
-        </View>
-        <ScrollView contentContainerStyle={styles.content} keyboardShouldPersistTaps="handled">
-          <Card>
-            <AppText style={{ color: colors.textMuted }}>
-              This is an estimate, not a measurement or medical recommendation. Review every value before
-              applying it.
-            </AppText>
-          </Card>
-          <View style={styles.fields}>
-            <View style={styles.grow}>
-              <Field
-                label="Birth date (YYYY-MM-DD)"
-                value={birthDate}
-                onChangeText={setBirthDate}
-                placeholder="1995-06-15"
-              />
+      <SafeAreaProvider>
+        <SafeAreaView
+          edges={['top', 'right', 'bottom', 'left']}
+          style={[styles.safeArea, { backgroundColor: colors.background }]}
+        >
+          <KeyboardAvoidingView behavior={Platform.OS === 'ios' ? 'padding' : undefined} style={styles.modal}>
+            <View style={[styles.header, { borderBottomColor: colors.border }]}>
+              <AppText style={styles.title}>Suggested nutrition targets</AppText>
+              <Button title="Close" compact variant="ghost" onPress={onClose} />
             </View>
-            <View style={styles.grow}>
-              <Field
-                label="Height (cm)"
-                value={heightCm}
-                onChangeText={setHeightCm}
-                keyboardType="number-pad"
-                placeholder="175"
-              />
-            </View>
-          </View>
-          <Field
-            label={`Current weight (${unit})`}
-            value={weight}
-            onChangeText={setWeight}
-            keyboardType="decimal-pad"
-            placeholder={unit === 'kg' ? '75' : '165'}
-          />
-          <SectionTitle>Formula sex</SectionTitle>
-          <SegmentedControl
-            value={formulaSex}
-            options={[
-              { label: 'Male', value: 'male' },
-              { label: 'Female', value: 'female' },
-            ]}
-            onChange={setFormulaSex}
-          />
-          <SectionTitle>Activity outside training</SectionTitle>
-          <ChipRow>
-            {(
-              [
-                ['sedentary', 'Sedentary'],
-                ['light', 'Light'],
-                ['moderate', 'Moderate'],
-                ['very_active', 'Very active'],
-              ] as const
-            ).map(([value, label]) => (
-              <ChoiceChip
-                key={value}
-                label={label}
-                selected={activity === value}
-                onPress={() => setActivity(value)}
-              />
-            ))}
-          </ChipRow>
-          <SectionTitle>Goal</SectionTitle>
-          <SegmentedControl
-            value={goalType}
-            options={[
-              { label: 'Lose', value: 'lose' },
-              { label: 'Maintain', value: 'maintain' },
-              { label: 'Gain', value: 'gain' },
-            ]}
-            onChange={(value) => {
-              setGoalType(value)
-              if (value === 'maintain') setPace('0')
-            }}
-          />
-          {goalType !== 'maintain' ? (
-            <Field
-              label="Target pace (grams/week)"
-              value={pace}
-              onChangeText={setPace}
-              keyboardType="number-pad"
-              placeholder={goalType === 'lose' ? '500' : '250'}
-            />
-          ) : null}
-          <Button title="Calculate suggestion" onPress={calculate} />
-
-          {suggestion !== null ? (
-            <Card>
-              <SectionTitle>Review before applying</SectionTitle>
-              <AppText style={{ color: colors.textMuted }}>
-                Estimated resting: {suggestion.restingCalories} kcal · maintenance:{' '}
-                {suggestion.maintenanceCalories} kcal
-              </AppText>
-              {suggestion.warnings.map((warning) => (
-                <AppText key={warning} style={{ color: colors.warning }}>
-                  {warning}
+            <ScrollView
+              automaticallyAdjustKeyboardInsets={Platform.OS === 'ios'}
+              contentContainerStyle={styles.content}
+              keyboardDismissMode={Platform.OS === 'ios' ? 'interactive' : 'on-drag'}
+              keyboardShouldPersistTaps="handled"
+            >
+              <Card>
+                <AppText style={{ color: colors.textMuted }}>
+                  This is an estimate, not a measurement or medical recommendation. Review every value before
+                  applying it.
                 </AppText>
-              ))}
+              </Card>
               <View style={styles.fields}>
                 <View style={styles.grow}>
                   <Field
-                    label="Calories"
-                    value={targetCalories}
-                    onChangeText={setTargetCalories}
+                    label="Birth date (YYYY-MM-DD)"
+                    value={birthDate}
+                    onChangeText={setBirthDate}
+                    placeholder="1995-06-15"
+                  />
+                </View>
+                <View style={styles.grow}>
+                  <Field
+                    label="Height (cm)"
+                    value={heightCm}
+                    onChangeText={setHeightCm}
                     keyboardType="number-pad"
-                  />
-                </View>
-                <View style={styles.grow}>
-                  <Field
-                    label="Protein (g)"
-                    value={targetProtein}
-                    onChangeText={setTargetProtein}
-                    keyboardType="decimal-pad"
+                    placeholder="175"
                   />
                 </View>
               </View>
-              <View style={styles.fields}>
-                <View style={styles.grow}>
-                  <Field
-                    label="Carbs (g)"
-                    value={targetCarbohydrate}
-                    onChangeText={setTargetCarbohydrate}
-                    keyboardType="decimal-pad"
+              <Field
+                label={`Current weight (${unit})`}
+                value={weight}
+                onChangeText={setWeight}
+                keyboardType="decimal-pad"
+                placeholder={unit === 'kg' ? '75' : '165'}
+              />
+              <SectionTitle>Formula sex</SectionTitle>
+              <SegmentedControl
+                value={formulaSex}
+                options={[
+                  { label: 'Male', value: 'male' },
+                  { label: 'Female', value: 'female' },
+                ]}
+                onChange={setFormulaSex}
+              />
+              <SectionTitle>Activity outside training</SectionTitle>
+              <ChipRow>
+                {(
+                  [
+                    ['sedentary', 'Sedentary'],
+                    ['light', 'Light'],
+                    ['moderate', 'Moderate'],
+                    ['very_active', 'Very active'],
+                  ] as const
+                ).map(([value, label]) => (
+                  <ChoiceChip
+                    key={value}
+                    label={label}
+                    selected={activity === value}
+                    onPress={() => setActivity(value)}
                   />
-                </View>
-                <View style={styles.grow}>
-                  <Field
-                    label="Fat (g)"
-                    value={targetFat}
-                    onChangeText={setTargetFat}
-                    keyboardType="decimal-pad"
-                  />
-                </View>
-              </View>
-              <Button title={`Apply from ${date}`} onPress={() => void confirm()} />
-            </Card>
-          ) : null}
-        </ScrollView>
-      </View>
+                ))}
+              </ChipRow>
+              <SectionTitle>Goal</SectionTitle>
+              <SegmentedControl
+                value={goalType}
+                options={[
+                  { label: 'Lose', value: 'lose' },
+                  { label: 'Maintain', value: 'maintain' },
+                  { label: 'Gain', value: 'gain' },
+                ]}
+                onChange={(value) => {
+                  setGoalType(value)
+                  if (value === 'maintain') setPace('0')
+                }}
+              />
+              {goalType !== 'maintain' ? (
+                <Field
+                  label="Target pace (grams/week)"
+                  value={pace}
+                  onChangeText={setPace}
+                  keyboardType="number-pad"
+                  placeholder={goalType === 'lose' ? '500' : '250'}
+                />
+              ) : null}
+              <Button title="Calculate suggestion" onPress={calculate} />
+
+              {suggestion !== null ? (
+                <Card>
+                  <SectionTitle>Review before applying</SectionTitle>
+                  <AppText style={{ color: colors.textMuted }}>
+                    Estimated resting: {suggestion.restingCalories} kcal · maintenance:{' '}
+                    {suggestion.maintenanceCalories} kcal
+                  </AppText>
+                  {suggestion.warnings.map((warning) => (
+                    <AppText key={warning} style={{ color: colors.warning }}>
+                      {warning}
+                    </AppText>
+                  ))}
+                  <View style={styles.fields}>
+                    <View style={styles.grow}>
+                      <Field
+                        label="Calories"
+                        value={targetCalories}
+                        onChangeText={setTargetCalories}
+                        keyboardType="number-pad"
+                      />
+                    </View>
+                    <View style={styles.grow}>
+                      <Field
+                        label="Protein (g)"
+                        value={targetProtein}
+                        onChangeText={setTargetProtein}
+                        keyboardType="decimal-pad"
+                      />
+                    </View>
+                  </View>
+                  <View style={styles.fields}>
+                    <View style={styles.grow}>
+                      <Field
+                        label="Carbs (g)"
+                        value={targetCarbohydrate}
+                        onChangeText={setTargetCarbohydrate}
+                        keyboardType="decimal-pad"
+                      />
+                    </View>
+                    <View style={styles.grow}>
+                      <Field
+                        label="Fat (g)"
+                        value={targetFat}
+                        onChangeText={setTargetFat}
+                        keyboardType="decimal-pad"
+                      />
+                    </View>
+                  </View>
+                  <Button title={`Apply from ${date}`} onPress={() => void confirm()} />
+                </Card>
+              ) : null}
+            </ScrollView>
+          </KeyboardAvoidingView>
+        </SafeAreaView>
+      </SafeAreaProvider>
     </Modal>
   )
 }
 
 const styles = StyleSheet.create({
+  safeArea: { flex: 1 },
   modal: { flex: 1 },
   header: {
     minHeight: 64,
@@ -299,6 +313,6 @@ const styles = StyleSheet.create({
   },
   title: { flex: 1, fontSize: 22, fontWeight: '800' },
   content: { padding: 18, gap: 14, paddingBottom: 44 },
-  fields: { flexDirection: 'row', gap: 10 },
+  fields: { flexDirection: 'row', alignItems: 'flex-end', gap: 10 },
   grow: { flex: 1, minWidth: 130 },
 })

@@ -31,10 +31,11 @@ function AppNavigation() {
       <StatusBar style={dark ? 'light' : 'dark'} />
       <Stack
         screenOptions={{
-          headerStyle: { backgroundColor: colors.surface },
+          headerStyle: { backgroundColor: colors.background },
           headerTintColor: colors.text,
           contentStyle: { backgroundColor: colors.background },
           headerBackTitle: 'Back',
+          headerShadowVisible: false,
         }}
       >
         <Stack.Screen name="index" options={{ headerShown: false }} />

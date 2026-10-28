@@ -2,6 +2,7 @@ import { useSignIn } from '@clerk/expo'
 import { Redirect, router } from 'expo-router'
 import { useState } from 'react'
 import { StyleSheet } from 'react-native'
+import { AuthFrame } from '@/components/design'
 import { AppText, Button, Card, Field, Heading, Screen } from '@/components/ui'
 import { isClerkConfigured, useAppAuth } from '@/providers/auth-provider'
 
@@ -92,11 +93,16 @@ export default function ForgotPasswordScreen() {
   if (auth.isSignedIn) return <Redirect href="/(tabs)" />
   if (!isClerkConfigured) return <Redirect href="/(auth)/sign-in" />
   return (
-    <Screen>
-      <Heading>Reset your password</Heading>
-      <ForgotPasswordForm />
+    <Screen safeTop contentStyle={styles.screen}>
+      <AuthFrame>
+        <Heading subtitle="We will send a verification code to your email.">Reset your password</Heading>
+        <ForgotPasswordForm />
+      </AuthFrame>
     </Screen>
   )
 }
 
-const styles = StyleSheet.create({ error: { color: '#DC2626', fontSize: 13 } })
+const styles = StyleSheet.create({
+  screen: { paddingBottom: 18 },
+  error: { color: '#FF5C5C', fontSize: 13 },
+})

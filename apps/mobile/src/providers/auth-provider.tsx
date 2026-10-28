@@ -1,4 +1,4 @@
-import { ClerkProvider, useClerk, useAuth as useClerkAuth } from '@clerk/expo'
+import { ClerkProvider, useClerk, useAuth as useClerkAuth, useUser } from '@clerk/expo'
 import { tokenCache } from '@clerk/expo/token-cache'
 import * as SecureStore from 'expo-secure-store'
 import {
@@ -16,6 +16,8 @@ interface AppAuthContextValue {
   isLoaded: boolean
   isSignedIn: boolean
   userId: string | null
+  displayName: string | null
+  initials: string
   getToken: () => Promise<string>
   signOut: () => Promise<void>
   signInDemo: () => Promise<void>
@@ -27,12 +29,24 @@ const clerkPublishableKey = process.env.EXPO_PUBLIC_CLERK_PUBLISHABLE_KEY?.trim(
 function ClerkBridge({ children }: PropsWithChildren) {
   const { isLoaded, isSignedIn, userId, getToken } = useClerkAuth()
   const clerk = useClerk()
+  const { user } = useUser()
+  const displayName = user?.fullName?.trim() || user?.firstName?.trim() || null
+  const initials = displayName
+    ? displayName
+        .split(/\s+/)
+        .slice(0, 2)
+        .map((part) => part[0])
+        .join('')
+        .toUpperCase()
+    : 'ME'
   const value = useMemo<AppAuthContextValue>(
     () => ({
       clerkEnabled: true,
       isLoaded,
       isSignedIn: isSignedIn === true,
       userId: userId ?? null,
+      displayName,
+      initials,
       getToken: async () => {
         const token = await getToken()
         if (token === null) throw new Error('Clerk did not return a session token')
@@ -41,7 +55,7 @@ function ClerkBridge({ children }: PropsWithChildren) {
       signOut: async () => clerk.signOut(),
       signInDemo: async () => undefined,
     }),
-    [clerk, getToken, isLoaded, isSignedIn, userId],
+    [clerk, displayName, getToken, initials, isLoaded, isSignedIn, userId],
   )
   return <AppAuthContext.Provider value={value}>{children}</AppAuthContext.Provider>
 }
@@ -70,6 +84,8 @@ function DemoAuthProvider({ children }: PropsWithChildren) {
       isLoaded: loaded,
       isSignedIn: signedIn,
       userId: signedIn ? 'demo:iphone' : null,
+      displayName: null,
+      initials: 'ME',
       getToken: async () => 'demo:iphone',
       signOut,
       signInDemo,

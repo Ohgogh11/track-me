@@ -1,6 +1,8 @@
 import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons'
 import { Redirect, Tabs } from 'expo-router'
 import type { ComponentProps } from 'react'
+import { useSafeAreaInsets } from 'react-native-safe-area-context'
+import { AppTabHeader } from '@/components/design'
 import { useAppAuth } from '@/providers/auth-provider'
 import { useAppTheme } from '@/theme/use-theme'
 
@@ -22,27 +24,37 @@ const icons: Record<string, { active: IconName; inactive: IconName }> = {
 export default function TabsLayout() {
   const auth = useAppAuth()
   const { colors } = useAppTheme()
+  const insets = useSafeAreaInsets()
   if (!auth.isSignedIn) return <Redirect href="/(auth)/sign-in" />
   return (
     <Tabs
       screenOptions={({ route }) => ({
-        headerShown: false,
+        headerShown: true,
+        header: () => <AppTabHeader />,
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: '#7D8580',
-        tabBarStyle: { backgroundColor: colors.surface, borderTopColor: colors.border, height: 62 },
-        tabBarLabelStyle: { fontSize: 11, fontWeight: '600', paddingBottom: 5 },
-        tabBarIcon: ({ color, focused, size }) => {
+        tabBarStyle: {
+          backgroundColor: colors.background,
+          borderTopColor: colors.border,
+          height: 64 + insets.bottom,
+          paddingTop: 6,
+          paddingBottom: Math.max(insets.bottom, 6),
+        },
+        tabBarItemStyle: { minHeight: 52 },
+        tabBarLabelStyle: { fontSize: 11, fontWeight: '400' },
+        tabBarHideOnKeyboard: true,
+        tabBarIcon: ({ color, focused }) => {
           const icon = icons[route.name] ?? HOME_ICON
           return (
-            <MaterialCommunityIcons name={focused ? icon.active : icon.inactive} color={color} size={size} />
+            <MaterialCommunityIcons name={focused ? icon.active : icon.inactive} color={color} size={20} />
           )
         },
       })}
     >
       <Tabs.Screen name="index" options={{ title: 'Home' }} />
-      <Tabs.Screen name="workouts" options={{ title: 'Workouts' }} />
-      <Tabs.Screen name="progress" options={{ title: 'Progress' }} />
+      <Tabs.Screen name="workouts" options={{ title: 'Train' }} />
       <Tabs.Screen name="calories" options={{ title: 'Nutrition' }} />
+      <Tabs.Screen name="progress" options={{ title: 'Progress' }} />
       <Tabs.Screen name="settings" options={{ title: 'Settings' }} />
     </Tabs>
   )

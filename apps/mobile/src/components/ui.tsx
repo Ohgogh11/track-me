@@ -1,8 +1,10 @@
-import type { PropsWithChildren, ReactNode } from 'react'
+import MaterialCommunityIcons from '@expo/vector-icons/MaterialCommunityIcons'
+import type { ComponentProps, PropsWithChildren, ReactNode } from 'react'
 import {
   ActivityIndicator,
   Pressable,
   ScrollView,
+  type StyleProp,
   StyleSheet,
   Text,
   TextInput,
@@ -10,20 +12,46 @@ import {
   type TextProps,
   View,
   type ViewProps,
+  type ViewStyle,
 } from 'react-native'
-import { SafeAreaView } from 'react-native-safe-area-context'
+import { type Edge, SafeAreaView } from 'react-native-safe-area-context'
 import { useAppTheme } from '@/theme/use-theme'
 
-export function Screen({ children, scroll = true }: PropsWithChildren<{ scroll?: boolean }>) {
+export function Screen({
+  children,
+  scroll = true,
+  contentStyle,
+  safeTop = false,
+  safeBottom = true,
+}: PropsWithChildren<{
+  scroll?: boolean
+  contentStyle?: StyleProp<ViewStyle>
+  safeTop?: boolean
+  safeBottom?: boolean
+}>) {
   const { colors } = useAppTheme()
+  const edges: Edge[] = [
+    ...(safeTop ? (['top'] as const) : []),
+    'right',
+    ...(safeBottom ? (['bottom'] as const) : []),
+    'left',
+  ]
   const body = scroll ? (
-    <ScrollView contentContainerStyle={styles.screenContent} keyboardShouldPersistTaps="handled">
+    <ScrollView
+      contentContainerStyle={[styles.screenContent, contentStyle]}
+      keyboardShouldPersistTaps="handled"
+      showsVerticalScrollIndicator={false}
+    >
       {children}
     </ScrollView>
   ) : (
-    <View style={styles.screenContent}>{children}</View>
+    <View style={[styles.screenContent, contentStyle]}>{children}</View>
   )
-  return <SafeAreaView style={[styles.safe, { backgroundColor: colors.background }]}>{body}</SafeAreaView>
+  return (
+    <SafeAreaView edges={edges} style={[styles.safe, { backgroundColor: colors.background }]}>
+      {body}
+    </SafeAreaView>
+  )
 }
 
 export function AppText({ style, ...props }: TextProps) {
@@ -58,13 +86,15 @@ export function Button({
   disabled = false,
   loading = false,
   compact = false,
+  icon,
 }: {
   title: string
   onPress: () => void
-  variant?: 'primary' | 'secondary' | 'danger' | 'ghost'
+  variant?: 'primary' | 'secondary' | 'danger' | 'ghost' | 'outline' | 'dashed'
   disabled?: boolean
   loading?: boolean
   compact?: boolean
+  icon?: ComponentProps<typeof MaterialCommunityIcons>['name']
 }) {
   const { colors } = useAppTheme()
   const background =
@@ -80,7 +110,7 @@ export function Button({
       ? colors.primaryText
       : variant === 'danger'
         ? '#FFFFFF'
-        : variant === 'secondary'
+        : variant === 'secondary' || variant === 'outline'
           ? colors.text
           : colors.primary
   return (
@@ -92,7 +122,11 @@ export function Button({
       style={({ pressed }) => [
         styles.button,
         compact && styles.buttonCompact,
-        { backgroundColor: background, borderColor: variant === 'ghost' ? colors.border : background },
+        {
+          backgroundColor: background,
+          borderColor: variant === 'outline' || variant === 'dashed' ? colors.border : background,
+          borderStyle: variant === 'dashed' ? 'dashed' : 'solid',
+        },
         (disabled || loading) && styles.disabled,
         pressed && styles.pressed,
       ]}
@@ -100,7 +134,10 @@ export function Button({
       {loading ? (
         <ActivityIndicator color={foreground} />
       ) : (
-        <Text style={[styles.buttonText, { color: foreground }]}>{title}</Text>
+        <View style={styles.buttonContent}>
+          {icon ? <MaterialCommunityIcons name={icon} size={17} color={foreground} /> : null}
+          <Text style={[styles.buttonText, { color: foreground }]}>{title}</Text>
+        </View>
       )}
     </Pressable>
   )
@@ -115,7 +152,7 @@ export function Field({
   const { colors } = useAppTheme()
   return (
     <View style={styles.fieldWrap}>
-      <Text style={[styles.label, { color: colors.text }]}>{label}</Text>
+      <Text style={[styles.label, { color: colors.textMuted }]}>{label}</Text>
       <TextInput
         {...props}
         placeholderTextColor={colors.textMuted}
@@ -165,30 +202,31 @@ export function EmptyState({
 
 const styles = StyleSheet.create({
   safe: { flex: 1 },
-  screenContent: { padding: 18, gap: 14, paddingBottom: 40, flexGrow: 1 },
-  text: { fontSize: 16 },
+  screenContent: { padding: 16, gap: 12, paddingBottom: 36, flexGrow: 1 },
+  text: { fontSize: 13 },
   headingBlock: { gap: 4, marginBottom: 4 },
-  heading: { fontSize: 30, fontWeight: '800', letterSpacing: -0.6 },
-  subtitle: { fontSize: 14, lineHeight: 20 },
-  card: { borderWidth: StyleSheet.hairlineWidth, borderRadius: 18, padding: 16, gap: 12 },
+  heading: { fontSize: 22, fontWeight: '600', letterSpacing: -0.6 },
+  subtitle: { fontSize: 13, lineHeight: 19 },
+  card: { borderWidth: StyleSheet.hairlineWidth, borderRadius: 16, padding: 15, gap: 11 },
   button: {
-    minHeight: 50,
-    borderRadius: 14,
+    minHeight: 46,
+    borderRadius: 12,
     borderWidth: 1,
     paddingHorizontal: 18,
     alignItems: 'center',
     justifyContent: 'center',
   },
-  buttonCompact: { minHeight: 38, borderRadius: 10, paddingHorizontal: 12 },
-  buttonText: { fontSize: 16, fontWeight: '700' },
+  buttonCompact: { minHeight: 44, borderRadius: 10, paddingHorizontal: 12 },
+  buttonContent: { flexDirection: 'row', gap: 7, alignItems: 'center', justifyContent: 'center' },
+  buttonText: { fontSize: 13, fontWeight: '600', flexShrink: 1, textAlign: 'center' },
   disabled: { opacity: 0.5 },
   pressed: { opacity: 0.75, transform: [{ scale: 0.99 }] },
   fieldWrap: { gap: 6 },
-  label: { fontSize: 14, fontWeight: '600' },
-  field: { minHeight: 50, borderWidth: 1, borderRadius: 12, paddingHorizontal: 14, fontSize: 16 },
+  label: { fontSize: 12, fontWeight: '500' },
+  field: { minHeight: 46, borderWidth: 1, borderRadius: 11, paddingHorizontal: 12, fontSize: 14 },
   error: { fontSize: 13 },
-  metric: { flex: 1, minWidth: 100, borderRadius: 14, padding: 13, gap: 2 },
-  metricValue: { fontSize: 21, fontWeight: '800' },
+  metric: { flex: 1, minWidth: 96, borderRadius: 13, padding: 12, gap: 2 },
+  metricValue: { fontSize: 20, fontWeight: '600' },
   metricLabel: { fontSize: 12, fontWeight: '600' },
   empty: {
     borderWidth: 1,

@@ -1,9 +1,10 @@
-import { useSignIn, useSSO } from '@clerk/expo'
-import * as AuthSession from 'expo-auth-session'
+import { useSignIn } from '@clerk/expo'
+import { useHostedAuth } from '@clerk/expo/hosted-auth'
 import { Redirect, router } from 'expo-router'
 import * as WebBrowser from 'expo-web-browser'
 import { useEffect, useState } from 'react'
 import { Platform, StyleSheet, View } from 'react-native'
+import { AuthFrame } from '@/components/design'
 import { AppText, Button, Card, Field, Heading, Screen } from '@/components/ui'
 import { isClerkConfigured, useAppAuth } from '@/providers/auth-provider'
 
@@ -22,11 +23,12 @@ function useWarmBrowser(): void {
 function ClerkSignInForm() {
   useWarmBrowser()
   const { signIn, errors, fetchStatus } = useSignIn()
-  const { startSSOFlow } = useSSO()
+  const { startHostedAuth } = useHostedAuth()
   const [emailAddress, setEmailAddress] = useState('')
   const [password, setPassword] = useState('')
   const [code, setCode] = useState('')
   const [message, setMessage] = useState<string | null>(null)
+  const [hostedAuthLoading, setHostedAuthLoading] = useState(false)
   const loading = fetchStatus === 'fetching'
 
   const finish = async () => {
@@ -65,23 +67,18 @@ function ClerkSignInForm() {
     await finish()
   }
 
-  const google = async () => {
+  const openHostedSignIn = async () => {
     setMessage(null)
+    setHostedAuthLoading(true)
     try {
-      const result = await startSSOFlow({
-        strategy: 'oauth_google',
-        redirectUrl: AuthSession.makeRedirectUri({ scheme: 'trackme', path: 'continue' }),
-      })
-      if (result.createdSessionId && result.setActive) {
-        await result.setActive({ session: result.createdSessionId })
+      const result = await startHostedAuth({ mode: 'sign-in' })
+      if (result.createdSessionId) {
         router.replace('/(tabs)')
-      } else {
-        setMessage(
-          'Google sign-in needs another Clerk verification step. Check the Clerk dashboard configuration.',
-        )
       }
     } catch (error) {
-      setMessage(error instanceof Error ? error.message : 'Google sign-in failed')
+      setMessage(error instanceof Error ? error.message : 'Browser sign-in failed')
+    } finally {
+      setHostedAuthLoading(false)
     }
   }
 
@@ -97,7 +94,11 @@ function ClerkSignInForm() {
   }
 
   return (
-    <Card>
+    <Card style={styles.authCard}>
+      <View style={styles.welcome}>
+        <AppText style={styles.title}>Welcome back.</AppText>
+        <AppText style={styles.subtitle}>Sign in to continue training.</AppText>
+      </View>
       <Field
         label="Email"
         autoCapitalize="none"
@@ -120,13 +121,16 @@ function ClerkSignInForm() {
         title="Sign in"
         onPress={() => void submit()}
         loading={loading}
-        disabled={!emailAddress.trim() || !password}
+        disabled={!emailAddress.trim() || !password || hostedAuthLoading}
       />
+      <AppText style={styles.separator}>or</AppText>
       <Button
-        title="Continue with Google"
-        variant="secondary"
-        onPress={() => void google()}
-        loading={loading}
+        title="Continue in browser"
+        variant="outline"
+        icon="web"
+        onPress={() => void openHostedSignIn()}
+        loading={hostedAuthLoading}
+        disabled={loading}
       />
       <View style={styles.links}>
         <Button
@@ -149,7 +153,11 @@ function ClerkSignInForm() {
 function DemoSignIn() {
   const auth = useAppAuth()
   return (
-    <Card>
+    <Card style={styles.authCard}>
+      <View style={styles.welcome}>
+        <AppText style={styles.title}>Welcome back.</AppText>
+        <AppText style={styles.subtitle}>Continue in local demo mode.</AppText>
+      </View>
       <AppText>
         Clerk is not configured yet. Demo mode keeps everything on this phone and uses the development-only
         API token.
@@ -163,14 +171,19 @@ export default function SignInScreen() {
   const auth = useAppAuth()
   if (auth.isSignedIn) return <Redirect href="/(tabs)" />
   return (
-    <Screen>
-      <View style={styles.centered}>{isClerkConfigured ? <ClerkSignInForm /> : <DemoSignIn />}</View>
+    <Screen safeTop contentStyle={styles.screen}>
+      <AuthFrame>{isClerkConfigured ? <ClerkSignInForm /> : <DemoSignIn />}</AuthFrame>
     </Screen>
   )
 }
 
 const styles = StyleSheet.create({
-  centered: { flex: 1, width: '100%', maxWidth: 440, alignSelf: 'center', justifyContent: 'center' },
+  screen: { paddingHorizontal: 24, paddingBottom: 18 },
+  authCard: { padding: 0, borderWidth: 0, backgroundColor: 'transparent', gap: 14 },
+  welcome: { alignItems: 'center', gap: 4, marginBottom: 8 },
+  title: { fontSize: 24, fontWeight: '600', letterSpacing: -0.7 },
+  separator: { color: '#9AB5A3', textAlign: 'center' },
+  subtitle: { color: '#9AB5A3' },
   links: { flexDirection: 'row', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 },
-  error: { color: '#DC2626', fontSize: 13 },
+  error: { color: '#FF5C5C', fontSize: 13 },
 })

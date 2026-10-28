@@ -12,7 +12,8 @@ import { router, useLocalSearchParams } from 'expo-router'
 import { useEffect, useState } from 'react'
 import { Alert, StyleSheet, View } from 'react-native'
 import { ChoiceChip } from '@/components/controls'
-import { AppText, Button, Card, EmptyState, Field, Heading, Metric, Screen } from '@/components/ui'
+import { PageTitle, SectionHeader } from '@/components/design'
+import { AppText, Button, Card, EmptyState, Field, Metric, Screen } from '@/components/ui'
 import { useData } from '@/providers/data-provider'
 import { useAppTheme } from '@/theme/use-theme'
 
@@ -118,9 +119,10 @@ export default function WorkoutHistoryScreen() {
 
   return (
     <Screen>
-      <Heading subtitle={`Completed ${new Date(draft.completedAt ?? draft.startedAt).toLocaleString()}`}>
-        {draft.name}
-      </Heading>
+      <PageTitle
+        eyebrow={`Completed ${new Date(draft.completedAt ?? draft.startedAt).toLocaleDateString()}`}
+        title={draft.name}
+      />
       <View style={styles.metrics}>
         <Metric
           label="Duration"
@@ -144,6 +146,7 @@ export default function WorkoutHistoryScreen() {
           onChangeText={(notes) => setDraft({ ...draft, notes })}
         />
       </Card>
+      <SectionHeader title="Exercises" />
       {draft.exercises.map((exercise, exerciseIndex) => (
         <Card key={exercise.id}>
           <View style={styles.row}>

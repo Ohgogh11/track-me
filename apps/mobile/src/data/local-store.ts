@@ -154,10 +154,22 @@ function parsePayload<T extends EntityPayload>(json: string | null): T | null {
 
 export class LocalStore {
   private database: SQLite.SQLiteDatabase | null = null
+  private initialization: Promise<void> | null = null
   private readonly listeners = new Set<() => void>()
 
   async initialize(): Promise<void> {
     if (this.database !== null) return
+    if (this.initialization === null) {
+      this.initialization = this.openAndInitialize().catch((error: unknown) => {
+        // Allow a later foreground/login attempt to retry a failed open or migration.
+        this.initialization = null
+        throw error
+      })
+    }
+    await this.initialization
+  }
+
+  private async openAndInitialize(): Promise<void> {
     const db = await SQLite.openDatabaseAsync('track-me.db')
     if (process.env.EXPO_PUBLIC_USE_SQLCIPHER === 'true') {
       const keyName = 'track-me-database-key'

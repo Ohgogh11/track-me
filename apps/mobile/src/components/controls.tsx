@@ -15,17 +15,21 @@ export function ChoiceChip({
   const { colors } = useAppTheme()
   return (
     <Pressable
+      accessibilityRole="button"
+      accessibilityState={{ selected }}
       onPress={onPress}
       style={({ pressed }) => [
         styles.chip,
         {
-          backgroundColor: selected ? colors.primary : colors.surface,
+          backgroundColor: selected ? colors.surfaceRaised : colors.surface,
           borderColor: selected ? colors.primary : colors.border,
         },
         pressed && styles.pressed,
       ]}
     >
-      <Text style={{ color: selected ? colors.primaryText : colors.text, fontWeight: '700' }}>{label}</Text>
+      <Text style={{ color: selected ? colors.text : colors.textMuted, fontSize: 13, fontWeight: '500' }}>
+        {label}
+      </Text>
     </Pressable>
   )
 }
@@ -62,14 +66,15 @@ export function SegmentedControl<T extends string>({
             key={option.value}
             accessibilityRole="button"
             accessibilityState={{ selected }}
+            hitSlop={{ top: 4, bottom: 4 }}
             onPress={() => onChange(option.value)}
             style={({ pressed }) => [
               styles.segment,
-              selected && { backgroundColor: colors.primary },
+              selected && { backgroundColor: colors.surfaceRaised },
               pressed && styles.pressed,
             ]}
           >
-            <Text style={[styles.segmentText, { color: selected ? colors.primaryText : colors.textMuted }]}>
+            <Text style={[styles.segmentText, { color: selected ? colors.text : colors.textMuted }]}>
               {option.label}
             </Text>
           </Pressable>
@@ -182,7 +187,14 @@ export function MiniLineChart({ values, labels }: { values: number[]; labels: st
 }
 
 const styles = StyleSheet.create({
-  chip: { borderWidth: 1, borderRadius: 999, paddingHorizontal: 14, paddingVertical: 9 },
+  chip: {
+    minHeight: 44,
+    justifyContent: 'center',
+    borderWidth: 1,
+    borderRadius: 999,
+    paddingHorizontal: 13,
+    paddingVertical: 8,
+  },
   chipScroll: { flexGrow: 0 },
   chipRow: { gap: 8, paddingRight: 16 },
   segmented: {
@@ -195,11 +207,11 @@ const styles = StyleSheet.create({
     overflow: 'hidden',
   },
   segment: { flex: 1, height: 36, alignItems: 'center', justifyContent: 'center', borderRadius: 9 },
-  segmentText: { fontSize: 14, fontWeight: '800' },
+  segmentText: { fontSize: 13, fontWeight: '600' },
   pressed: { opacity: 0.7 },
   sectionTitle: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 12 },
-  sectionText: { fontSize: 20, fontWeight: '800' },
-  track: { height: 10, borderRadius: 999, overflow: 'hidden' },
+  sectionText: { flexShrink: 1, fontSize: 18, fontWeight: '600' },
+  track: { height: 5, borderRadius: 999, overflow: 'hidden' },
   fill: { height: '100%', borderRadius: 999 },
   lineChart: { width: '100%', minHeight: 136 },
   lineLabels: { flexDirection: 'row', justifyContent: 'space-between', gap: 8 },
